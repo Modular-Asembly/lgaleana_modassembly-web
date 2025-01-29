@@ -1,10 +1,10 @@
-requests
-sqlalchemy
-uvicorn
-mypy
 psycopg2-binary
 fastapi
-pydantic
-python-multipart
+uvicorn
+requests
+mypy
 bcrypt
+python-multipart
+pydantic
 python-dotenv
+sqlalchemy

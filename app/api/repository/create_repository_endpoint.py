@@ -1,10 +1,8 @@
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.services.repository.create_repository import create_repository
-from app.modassembly.database.sql.get_sql_session import get_sql_session
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,35 +10,37 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-class RepositoryCreateRequest(BaseModel):
-    name: str
+class CreateRepositoryRequest(BaseModel):
+    org_name: str
+    repo_name: str
+    user_id: int
 
-class RepositoryCreateResponse(BaseModel):
-    id: int
-    name: str
-    owner_id: int
+class CreateRepositoryResponse(BaseModel):
     message: str
 
-@router.post("/repositories", response_model=RepositoryCreateResponse, summary="Create a new repository", tags=["Repositories"])
-def create_repository_endpoint(repository_data: RepositoryCreateRequest, user_id: int, db: Session = Depends(get_sql_session)) -> RepositoryCreateResponse:
+@router.post("/repositories", response_model=CreateRepositoryResponse, summary="Create a new repository", tags=["Repositories"])
+def create_repository_endpoint(request: CreateRepositoryRequest) -> CreateRepositoryResponse:
     """
-    Create a new repository.
+    Creates a new repository both locally and on GitHub.
 
-    - **name**: The name of the repository.
+    - **org_name**: The name of the organization.
+    - **repo_name**: The name of the repository.
     - **user_id**: The ID of the user who owns the repository.
+
+    Returns a success message or an error.
     """
-    logger.info("create_repository_endpoint called with repository_data: %s, user_id: %d", repository_data, user_id)
+    logger.info("create_repository_endpoint called with org_name: %s, repo_name: %s, user_id: %d", request.org_name, request.repo_name, request.user_id)
 
     try:
-        new_repository = create_repository(repository_data.dict(), user_id)
-        response = RepositoryCreateResponse(
-            id=new_repository.id,
-            name=new_repository.name.__str__(),
-            owner_id=new_repository.owner_id,
-            message="Repository created successfully"
-        )
-        logger.info("Repository created successfully with id: %d", new_repository.id.__str__())
-        return response
+        # 2) Calls the create_repository function
+        success_message = create_repository(request.org_name, request.repo_name, request.user_id)
+        logger.info("Repository created successfully: %s", success_message)
+
+        # 3) Returns a success message
+        return CreateRepositoryResponse(message=success_message)
+    except ValueError as e:
+        logger.error("Error in create_repository_endpoint: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error("Error creating repository: %s", str(e))
-        raise HTTPException(status_code=400, detail="Error creating repository")
+        logger.error("Unexpected error in create_repository_endpoint: %s", str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")

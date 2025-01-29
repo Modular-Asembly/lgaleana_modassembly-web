@@ -26,17 +26,17 @@ from app.models.Repository import Repository
 
 # Endpoints
 
-from app.api.user.create_user_endpoint import router
+from app.api.repository.create_repository_endpoint import router
 app.include_router(router)
 from app.api.auth.login_user_endpoint import router
 app.include_router(router)
-from app.api.repository.create_repository_endpoint import router
+from app.api.user.create_user_endpoint import router
+app.include_router(router)
+from app.api.github.delete_github_repository_endpoint import router
 app.include_router(router)
 from app.api.conversation.create_conversation_endpoint import router
 app.include_router(router)
-from app.api.github.create_github_repository_endpoint import router
-app.include_router(router)
-from app.api.github.delete_github_repository_endpoint import router
+from app.api.repository.delete_repository_endpoint import router
 app.include_router(router)
 
 # Database

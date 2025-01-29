@@ -34,6 +34,10 @@ from app.api.repository.create_repository_endpoint import router
 app.include_router(router)
 from app.api.conversation.create_conversation_endpoint import router
 app.include_router(router)
+from app.api.github.create_github_repository_endpoint import router
+app.include_router(router)
+from app.api.github.delete_github_repository_endpoint import router
+app.include_router(router)
 
 # Database
 

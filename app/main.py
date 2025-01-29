@@ -19,12 +19,20 @@ app.add_middleware(
 # Models
 
 from app.models.User import User
+from app.models.Conversation import Conversation
+from app.models.ConversationType import ConversationType
+from app.models.Message import Message
+from app.models.Repository import Repository
 
 # Endpoints
 
 from app.api.user.create_user_endpoint import router
 app.include_router(router)
 from app.api.auth.login_user_endpoint import router
+app.include_router(router)
+from app.api.repository.create_repository_endpoint import router
+app.include_router(router)
+from app.api.conversation.create_conversation_endpoint import router
 app.include_router(router)
 
 # Database

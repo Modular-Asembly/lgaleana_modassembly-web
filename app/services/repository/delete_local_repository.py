@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 from sqlalchemy.orm import Session
 from app.models.Repository import Repository
 from app.models.Conversation import Conversation
@@ -7,6 +9,10 @@ from app.modassembly.database.sql.get_sql_session import get_sql_session
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+REPOS = os.path.expanduser("~/repos")
+
 
 def delete_local_repository(repository_id: int) -> None:
     """
@@ -27,7 +33,10 @@ def delete_local_repository(repository_id: int) -> None:
             session.delete(repository)
             logger.info("Deleted repository with id: %d", repository_id)
 
-        # 3) Deletes all associated Conversations
+            # 3) Deletes the local repository folder
+            shutil.rmtree(f"{REPOS}/{repository.name}")
+
+        # 4) Deletes all associated Conversations
         conversations = session.query(Conversation).filter(Conversation.repository_id == repository_id).all()
         for conversation in conversations:
             session.delete(conversation)

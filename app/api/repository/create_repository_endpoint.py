@@ -11,12 +11,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class CreateRepositoryRequest(BaseModel):
-    org_name: str
     repo_name: str
     user_id: int
 
 class CreateRepositoryResponse(BaseModel):
     message: str
+
+
+ORG = "Modular-Asembly"
+
 
 @router.post("/repositories", response_model=CreateRepositoryResponse, summary="Create a new repository", tags=["Repositories"])
 def create_repository_endpoint(request: CreateRepositoryRequest) -> CreateRepositoryResponse:
@@ -29,11 +32,11 @@ def create_repository_endpoint(request: CreateRepositoryRequest) -> CreateReposi
 
     Returns a success message or an error.
     """
-    logger.info("create_repository_endpoint called with org_name: %s, repo_name: %s, user_id: %d", request.org_name, request.repo_name, request.user_id)
+    logger.info("create_repository_endpoint called with org_name: %s, repo_name: %s, user_id: %d", ORG, request.repo_name, request.user_id)
 
     try:
         # 2) Calls the create_repository function
-        success_message = create_repository(request.org_name, request.repo_name, request.user_id)
+        success_message = create_repository(ORG, request.repo_name, request.user_id)
         logger.info("Repository created successfully: %s", success_message)
 
         # 3) Returns a success message

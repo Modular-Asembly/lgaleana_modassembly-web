@@ -32,7 +32,6 @@ def create_github_repository(org_name: str, repo_name: str) -> Dict[str, Any]:
     url = f"https://api.github.com/orgs/{org_name}/repos"
     payload = {
         "name": repo_name,
-        "private": True  # Assuming the repository should be private; adjust as needed
     }
     response = requests.post(url, headers=headers, json=payload)
 

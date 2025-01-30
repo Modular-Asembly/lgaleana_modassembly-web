@@ -1,10 +1,11 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from typing import Dict
 
-from app.services.repository.delete_local_repository import delete_local_repository
+from app.services.auth.authenticate_request import authenticate_request
 from app.services.github.delete_github_repository import delete_github_repository
+from app.services.repository.delete_local_repository import delete_local_repository
+from app.models.User import User
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,40 +14,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class DeleteRepositoryRequest(BaseModel):
-    repo_name: str
     repository_id: int
+    repository_name: str
 
 class DeleteRepositoryResponse(BaseModel):
     message: str
 
-
-ORG = "Modular-Asembly"
-
-
-@router.delete("/repositories", response_model=DeleteRepositoryResponse, summary="Delete a repository", tags=["Repositories"])
-def delete_repository_endpoint(request: DeleteRepositoryRequest) -> DeleteRepositoryResponse:
+@router.delete("/repository", response_model=DeleteRepositoryResponse, status_code=status.HTTP_200_OK)
+def delete_repository_endpoint(
+    delete_request: DeleteRepositoryRequest,
+    current_user: User = Depends(authenticate_request)
+) -> DeleteRepositoryResponse:
     """
-    Deletes a repository both locally and on GitHub.
+    Endpoint to delete a repository.
 
-    - **org_name**: The name of the organization.
-    - **repo_name**: The name of the repository.
-    - **repository_id**: The ID of the local repository.
+    - **repository_id**: The ID of the repository to delete.
+    - **repository_name**: The name of the repository to delete.
 
-    Returns a success message or an error.
+    Returns a success message if deletion is successful, otherwise returns an error message.
     """
-    logger.info("delete_repository_endpoint called with org_name: %s, repo_name: %s, repository_id: %d", ORG, request.repo_name, request.repository_id)
+    logger.info("delete_repository_endpoint called with repository_id: %d, repository_name: %s", delete_request.repository_id, delete_request.repository_name)
 
-    # 2) Calls delete_local_repository to remove the local Repository instance and associated Conversations
-    delete_local_repository(request.repository_id)
-    logger.info("Local repository and conversations deleted for repository_id: %d", request.repository_id)
+    # 3) Uses the hardcoded organization name 'Modular-Asembly'.
+    org_name = "Modular-Asembly"
 
-    # 3) Calls delete_github_repository to delete the repository on GitHub
-    response_data: Dict[str, str] = delete_github_repository(ORG, request.repo_name)
-    if response_data["status_code"] != "204":
-        logger.error("Error deleting GitHub repository: %s", response_data["message"])
-        raise HTTPException(status_code=int(response_data["status_code"]), detail=response_data["message"])
+    # 4) Calls delete_local_repository to remove the local Repository instance and associated Conversations.
+    delete_local_repository(delete_request.repository_id)
 
-    logger.info("GitHub repository deleted successfully: %s", response_data["message"])
+    # 5) Calls delete_github_repository to delete the repository on GitHub.
+    github_response = delete_github_repository(org_name, delete_request.repository_name)
+    if github_response["status_code"] != "204":
+        logger.error("Failed to delete GitHub repository: %s", github_response["message"])
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete GitHub repository: {github_response['message']}"
+        )
 
-    # 4) Returns a success message
-    return DeleteRepositoryResponse(message="Repository deleted successfully")
+    response = DeleteRepositoryResponse(message="Repository deleted successfully")
+    logger.info("Repository deleted successfully: %s", delete_request.repository_name)
+    return response

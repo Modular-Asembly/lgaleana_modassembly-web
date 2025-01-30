@@ -1,8 +1,10 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from app.services.auth.authenticate_request import authenticate_request
 from app.services.repository.create_repository import create_repository
+from app.models.User import User
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,39 +13,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class CreateRepositoryRequest(BaseModel):
-    repo_name: str
-    user_id: int
+    repository_name: str
 
 class CreateRepositoryResponse(BaseModel):
     message: str
 
-
-ORG = "Modular-Asembly"
-
-
-@router.post("/repositories", response_model=CreateRepositoryResponse, summary="Create a new repository", tags=["Repositories"])
-def create_repository_endpoint(request: CreateRepositoryRequest) -> CreateRepositoryResponse:
+@router.post("/repositories", response_model=CreateRepositoryResponse, status_code=status.HTTP_201_CREATED)
+def create_repository_endpoint(
+    request: CreateRepositoryRequest,
+    user: User = Depends(authenticate_request)
+) -> CreateRepositoryResponse:
     """
-    Creates a new repository both locally and on GitHub.
+    Endpoint to create a new repository.
 
-    - **org_name**: The name of the organization.
-    - **repo_name**: The name of the repository.
-    - **user_id**: The ID of the user who owns the repository.
+    - **repository_name**: The name of the repository to create.
 
-    Returns a success message or an error.
+    Returns a success message if the repository is created successfully, otherwise returns an error message.
     """
-    logger.info("create_repository_endpoint called with org_name: %s, repo_name: %s, user_id: %d", ORG, request.repo_name, request.user_id)
+    logger.info("create_repository_endpoint called with repository_name: %s", request.repository_name)
 
     try:
-        # 2) Calls the create_repository function
-        success_message = create_repository(ORG, request.repo_name, request.user_id)
-        logger.info("Repository created successfully: %s", success_message)
+        # 3) Uses the hardcoded organization name 'Modular-Asembly'.
+        org_name = "Modular-Asembly"
 
-        # 3) Returns a success message
-        return CreateRepositoryResponse(message=success_message)
-    except ValueError as e:
-        logger.error("Error in create_repository_endpoint: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        # 4) Calls the create_repository function with the organization name, repository name, and user ID.
+        success_message = create_repository(org_name, request.repository_name, user.id)
+
+        response = CreateRepositoryResponse(message=success_message)
+        logger.info("Repository created successfully: %s", request.repository_name)
+        return response
+
     except Exception as e:
-        logger.error("Unexpected error in create_repository_endpoint: %s", str(e))
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error("Error creating repository: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

@@ -33,7 +33,7 @@
       },
       "file": {
         "path": "app/main.py",
-        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.message.Message import Message\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
       },
       "update_status": "up_to_date",
       "is_deployed": false
@@ -270,15 +270,18 @@
           "app.modassembly.github.business.create_github_repository",
           "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.repository.Repository",
-          "app.modassembly.models.user.User",
-          "app.modassembly.conversations.business.create_conversations_for_repository"
+          "app.modassembly.conversations.business.create_conversations_for_repository",
+          "app.modassembly.models.user.User"
         ],
         "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. After saving the repository in the local database, it calls create_conversations_for_repository to add two default conversations ('brainstorm' and 'architecture').",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/business/create_repository.py",
+        "content": "from typing import Iterator\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.github.business.create_github_repository import create_github_repository\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.conversations.business.create_conversations_for_repository import create_conversations_for_repository\n\ndef create_repository(user_id: int, repo_name: str) -> Repository:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    # Verify that the user exists\n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(f\"User with id {user_id} not found\")\n    \n    # Construct repository name using user's username and the provided repo_name\n    constructed_repo_name: str = f\"{user.username}_{repo_name}\"\n    \n    # Check that the repository doesn't already exist in GitHub and create it via GitHub API.\n    # If it already exists, create_github_repository will raise a ValueError.\n    _ = create_github_repository(user.username, repo_name)\n    \n    # Create a new Repository record in the local database\n    new_repository = Repository(\n        name=constructed_repo_name,\n        user_id=user.id\n    )\n    db.add(new_repository)\n    db.commit()\n    db.refresh(new_repository)\n    \n    # Create default conversations for the repository\n    create_conversations_for_repository(new_repository.id)\n    \n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    \n    return new_repository\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -369,17 +372,20 @@
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
           "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.github.business.delete_github_repository",
           "app.modassembly.models.repository.Repository",
           "app.modassembly.models.user.User",
-          "app.modassembly.conversations.business.delete_conversations_for_repository"
+          "app.modassembly.conversations.business.delete_conversations_for_repository",
+          "app.modassembly.github.business.delete_github_repository"
         ],
         "purpose": "Deletes a repository for a given user. Validates input, checks if the repository exists in the local database, first calls delete_github_repository to remove it from GitHub, then calls delete_conversations_for_repository to remove all conversations associated with the repository, and finally deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/business/delete_repository.py",
+        "content": "from typing import Iterator\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.github.business.delete_github_repository import delete_github_repository\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.conversations.business.delete_conversations_for_repository import delete_conversations_for_repository\n\ndef delete_repository(user_id: int, repo_name: str) -> str:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n\n    # Retrieve the user to get the username\n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(f\"User with id {user_id} not found\")\n\n    # Construct the repository full name from username and repo_name\n    full_repo_name: str = f\"{user.username}_{repo_name}\"\n\n    # Retrieve the repository record\n    repo: Repository | None = db.query(Repository).filter(\n        Repository.user_id == user_id,\n        Repository.name == full_repo_name\n    ).first()\n\n    if repo is None:\n        raise ValueError(f\"Repository '{full_repo_name}' not found for user with id {user_id}\")\n\n    # Delete the repository from GitHub\n    # This function will raise an error if the repository does not exist on GitHub.\n    delete_github_repository(user.username, repo_name)\n\n    # Delete all associated conversations for the repository\n    delete_conversations_for_repository(repo.id)\n\n    # Delete the repository record from the local database\n    db.delete(repo)\n    db.commit()\n\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n\n    return \"Repository deleted successfully\"\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -407,6 +413,7 @@
         "name": "Conversation",
         "namespace": "app.modassembly.models.conversation",
         "dependencies": [
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.repository.Repository"
         ],
         "fields": [
@@ -428,8 +435,11 @@
           }
         ]
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/models/conversation/Conversation.py",
+        "content": "from datetime import datetime\nfrom sqlalchemy import Column, Integer, String, DateTime, ForeignKey\nfrom app.modassembly.database.sql.get_sql_session import Base\nfrom app.modassembly.models.repository.Repository import Repository\n\nclass Conversation(Base):\n    __tablename__ = \"conversations\"\n\n    id = Column(Integer, primary_key=True, index=True)\n    repository_id = Column(Integer, ForeignKey(Repository.id), nullable=False, index=True)\n    conversation_type = Column(String, nullable=False)\n    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -438,7 +448,8 @@
         "name": "Message",
         "namespace": "app.modassembly.models.message",
         "dependencies": [
-          "app.modassembly.models.conversation.Conversation"
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "fields": [
           {
@@ -467,8 +478,11 @@
           }
         ]
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/models/message/Message.py",
+        "content": "from datetime import datetime\nfrom sqlalchemy import Column, Integer, String, DateTime, ForeignKey\nfrom app.modassembly.database.sql.get_sql_session import Base\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nclass Message(Base):\n    __tablename__ = \"messages\"\n\n    id = Column(Integer, primary_key=True, index=True)\n    conversation_id = Column(Integer, ForeignKey(Conversation.id), nullable=False, index=True)\n    role = Column(String, nullable=False)\n    content = Column(String, nullable=False)\n    type = Column(String, nullable=False)\n    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -484,8 +498,11 @@
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/business/create_conversations_for_repository.py",
+        "content": "from typing import Iterator\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\ndef create_conversations_for_repository(repository_id: int) -> None:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    # Create two Conversation instances: one for 'brainstorm' and one for 'architecture'\n    conversation_brainstorm = Conversation(\n        repository_id=repository_id,\n        conversation_type=\"brainstorm\"\n    )\n    conversation_architecture = Conversation(\n        repository_id=repository_id,\n        conversation_type=\"architecture\"\n    )\n    \n    db.add(conversation_brainstorm)\n    db.add(conversation_architecture)\n    db.commit()\n    \n    db.refresh(conversation_brainstorm)\n    db.refresh(conversation_architecture)\n    \n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -501,8 +518,11 @@
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/business/delete_conversations_for_repository.py",
+        "content": "from typing import Iterator\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\ndef delete_conversations_for_repository(repository_id: int) -> None:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    db.query(Conversation).filter(Conversation.repository_id == repository_id).delete(synchronize_session=False)\n    db.commit()\n    \n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

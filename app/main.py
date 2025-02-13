@@ -19,7 +19,9 @@ app.add_middleware(
 # Models
 
 from app.modassembly.models.repository.Repository import Repository
+from app.modassembly.models.message.Message import Message
 from app.modassembly.models.user.User import User
+from app.modassembly.models.conversation.Conversation import Conversation
 
 # Endpoints
 

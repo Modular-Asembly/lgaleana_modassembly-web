@@ -524,6 +524,39 @@
       },
       "update_status": "up_to_date",
       "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "list_conversations",
+        "namespace": "app.modassembly.conversations.business",
+        "dependencies": [
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session"
+        ],
+        "purpose": "Retrieves all conversations related to a given repository. Accepts a repository ID, queries the database using get_sql_session, and returns a list of Conversation records.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "list_conversations_endpoint",
+        "namespace": "app.modassembly.conversations.endpoints",
+        "dependencies": [
+          "app.modassembly.conversations.business.list_conversations"
+        ],
+        "purpose": "FastAPI endpoint that receives a repository identification (e.g., repository ID) and returns all conversations related to that repository by calling the list_conversations business function. Returns an appropriate HTTP response with the list of conversations.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
     }
   ],
   "github": "https://github.com/Modular-Asembly/lgaleana_modassembly-web"

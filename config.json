@@ -270,17 +270,15 @@
           "app.modassembly.github.business.create_github_repository",
           "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.repository.Repository",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.conversations.business.create_conversations_for_repository"
         ],
-        "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. Finally, it saves the repository in the local database.",
+        "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. After saving the repository in the local database, it calls create_conversations_for_repository to add two default conversations ('brainstorm' and 'architecture').",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": {
-        "path": "app/modassembly/repositories/business/create_repository.py",
-        "content": "from datetime import datetime\nfrom typing import Iterator\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.github.business.create_github_repository import create_github_repository\n\ndef create_repository(user_id: int, repo_name: str) -> Repository:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(\"User not found\")\n    \n    full_repo_name: str = f\"{user.username}_{repo_name}\"\n    \n    # Create the GitHub repository (this will raise if exists)\n    github_url: str = create_github_repository(user.username, repo_name)\n    \n    new_repository: Repository = Repository(\n        name=full_repo_name,\n        created_at=datetime.utcnow(),\n        user_id=user.id\n    )\n    db.add(new_repository)\n    db.commit()\n    db.refresh(new_repository)\n    \n    # Close the database session\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    \n    return new_repository\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -373,17 +371,15 @@
           "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.github.business.delete_github_repository",
           "app.modassembly.models.repository.Repository",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.conversations.business.delete_conversations_for_repository"
         ],
-        "purpose": "Deletes a repository for a given user. The function validates the input, checks if the repository exists in the local database, calls delete_github_repository to remove it from GitHub, and then deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
+        "purpose": "Deletes a repository for a given user. Validates input, checks if the repository exists in the local database, first calls delete_github_repository to remove it from GitHub, then calls delete_conversations_for_repository to remove all conversations associated with the repository, and finally deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": {
-        "path": "app/modassembly/repositories/business/delete_repository.py",
-        "content": "from typing import Iterator\n\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.github.business.delete_github_repository import delete_github_repository\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\ndef delete_repository(user_id: int, repo_name: str) -> str:\n    \"\"\"\n    Deletes a repository for a given user. The function validates the input, checks if the repository exists\n    in the local database, calls delete_github_repository to remove it from GitHub, and then deletes the \n    repository record from the local database using get_sql_session.\n    \n    Parameters:\n        user_id (int): The ID of the user owning the repository.\n        repo_name (str): The base repository name (without the user prefix).\n        \n    Returns:\n        str: A message indicating that the repository was deleted.\n    \n    Raises:\n        ValueError: If the user or repository is not found.\n        requests.HTTPError: If there's an HTTP error during deletion from GitHub.\n        KeyError: If required environment variables are missing.\n    \"\"\"\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    # Fetch the User to get the username needed to construct full repository name.\n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(f\"User with id {user_id} not found\")\n    \n    # Construct the full repository name as stored in the database.\n    full_repo_name: str = f\"{user.username}_{repo_name}\"\n    \n    # Find the repository record in the local database.\n    repository: Repository | None = (\n        db.query(Repository)\n        .filter(Repository.user_id == user_id, Repository.name == full_repo_name)\n        .first()\n    )\n    if repository is None:\n        raise ValueError(f\"Repository '{full_repo_name}' not found for user with id {user_id}\")\n    \n    # Delete repository from GitHub.\n    delete_github_repository(user.username, repo_name)\n    \n    # Delete repository record from the local database.\n    db.delete(repository)\n    db.commit()\n    \n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    \n    return \"Repository deleted successfully\"\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -403,6 +399,110 @@
         "content": "from fastapi import APIRouter, HTTPException, status\nfrom pydantic import BaseModel\nfrom app.modassembly.repositories.business.delete_repository import delete_repository\n\nrouter = APIRouter()\n\nclass DeleteRepositoryPayload(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass DeleteRepositoryResponse(BaseModel):\n    message: str\n\n@router.delete(\n    \"/repositories\",\n    response_model=DeleteRepositoryResponse,\n    status_code=status.HTTP_200_OK,\n    summary=\"Delete Repository\",\n    description=(\n        \"Deletes a repository for a given user. The endpoint validates the request payload, \"\n        \"calls the business logic function to delete the repository from GitHub and the local database, \"\n        \"and returns a confirmation message upon successful deletion.\"\n    )\n)\ndef delete_repository_endpoint(payload: DeleteRepositoryPayload) -> DeleteRepositoryResponse:\n    \"\"\"\n    FastAPI endpoint that receives repository deletion requests.\n    \n    Parameters:\n        payload (DeleteRepositoryPayload): The payload containing the user_id and the repository name.\n    \n    Returns:\n        DeleteRepositoryResponse: A response containing a message indicating the outcome of the deletion.\n    \n    Raises:\n        HTTPException: If deletion fails due to validation or processing errors.\n    \"\"\"\n    message: str = delete_repository(payload.user_id, payload.repo_name)\n    return DeleteRepositoryResponse(message=message)\n"
       },
       "update_status": "up_to_date",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "datamodel",
+        "name": "Conversation",
+        "namespace": "app.modassembly.models.conversation",
+        "dependencies": [
+          "app.modassembly.models.repository.Repository"
+        ],
+        "fields": [
+          {
+            "name": "id",
+            "purpose": "Primary key for the conversation."
+          },
+          {
+            "name": "repository_id",
+            "purpose": "Foreign key linking the conversation to the repository."
+          },
+          {
+            "name": "conversation_type",
+            "purpose": "Type of the conversation (e.g., issue, discussion, chat)."
+          },
+          {
+            "name": "created_at",
+            "purpose": "Timestamp when the conversation was started."
+          }
+        ]
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "datamodel",
+        "name": "Message",
+        "namespace": "app.modassembly.models.message",
+        "dependencies": [
+          "app.modassembly.models.conversation.Conversation"
+        ],
+        "fields": [
+          {
+            "name": "id",
+            "purpose": "Primary key for the message."
+          },
+          {
+            "name": "conversation_id",
+            "purpose": "Foreign key linking the message to its conversation."
+          },
+          {
+            "name": "role",
+            "purpose": "Identifies the role of the message sender (e.g., user, admin, system)."
+          },
+          {
+            "name": "content",
+            "purpose": "The actual text content of the message."
+          },
+          {
+            "name": "type",
+            "purpose": "The type of message (e.g., text, image, code)."
+          },
+          {
+            "name": "created_at",
+            "purpose": "Timestamp when the message was created."
+          }
+        ]
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_conversations_for_repository",
+        "namespace": "app.modassembly.conversations.business",
+        "dependencies": [
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session"
+        ],
+        "purpose": "For a given repository, creates two default conversations: one for 'brainstorm' and one for 'architecture'. Uses get_sql_session to interact with the database and inserts Conversation records linked to the repository.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "delete_conversations_for_repository",
+        "namespace": "app.modassembly.conversations.business",
+        "dependencies": [
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session"
+        ],
+        "purpose": "For a given repository ID, deletes all related Conversation records from the database using get_sql_session.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     }
   ],

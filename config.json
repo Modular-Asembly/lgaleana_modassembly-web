@@ -33,7 +33,7 @@
       },
       "file": {
         "path": "app/main.py",
-        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.message.Message import Message\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.message.Message import Message\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.conversations.endpoints.list_conversations_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
       },
       "update_status": "up_to_date",
       "is_deployed": false
@@ -538,8 +538,11 @@
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/business/list_conversations.py",
+        "content": "from typing import List, Iterator\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\ndef list_conversations(repository_id: int) -> List[Conversation]:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    conversations: List[Conversation] = db.query(Conversation).filter(\n        Conversation.repository_id == repository_id\n    ).all()\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    return conversations\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -554,8 +557,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/endpoints/list_conversations_endpoint.py",
+        "content": "from datetime import datetime\nfrom typing import List\n\nfrom fastapi import APIRouter, Query\nfrom pydantic import BaseModel\n\nfrom app.modassembly.conversations.business.list_conversations import list_conversations\n\n# Pydantic model for conversation response\nclass ConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: str\n\nrouter = APIRouter()\n\n@router.get(\n    \"/conversations\",\n    response_model=List[ConversationResponse],\n    summary=\"List Conversations\",\n    description=(\n        \"Retrieve all conversations related to a given repository by providing the repository ID. \"\n        \"Calls the business function to fetch Conversation records from the database.\"\n    )\n)\ndef list_conversations_endpoint(\n    repository_id: int = Query(..., description=\"ID of the repository to filter conversations\")\n) -> List[ConversationResponse]:\n    \"\"\"\n    FastAPI endpoint that receives a repository ID as a query parameter and returns all conversations \n    related to that repository. The endpoint calls the list_conversations business function and \n    maps each Conversation record into a ConversationResponse model for Swagger documentation.\n    \n    Parameters:\n        repository_id (int): The ID of the repository whose conversations are to be retrieved.\n    \n    Returns:\n        List[ConversationResponse]: A list of conversation responses.\n    \"\"\"\n    conversations = list_conversations(repository_id)\n    return [\n        ConversationResponse(\n            id=conv.id,\n            repository_id=conv.repository_id,\n            conversation_type=conv.conversation_type,\n            created_at=conv.created_at.isoformat()\n        )\n        for conv in conversations\n    ]\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

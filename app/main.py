@@ -33,6 +33,8 @@ from app.modassembly.repositories.endpoints.create_repository_endpoint import ro
 app.include_router(router)
 from app.modassembly.repositories.endpoints.delete_repository_endpoint import router
 app.include_router(router)
+from app.modassembly.conversations.endpoints.list_conversations_endpoint import router
+app.include_router(router)
 
 # Database
 

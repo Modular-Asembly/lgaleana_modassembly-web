@@ -1,30 +1,38 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from app.modassembly.users.business.login_user import login_user
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/login",
+    tags=["Authentication"],
+    responses={404: {"description": "Not found"}},
+)
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+class LoginUserInput(BaseModel):
+    email: EmailStr
+    plain_password: str
 
-class LoginResponse(BaseModel):
+class LoginUserOutput(BaseModel):
     token: str
 
 @router.post(
-    "/login",
-    response_model=LoginResponse,
+    "",
+    response_model=LoginUserOutput,
     summary="User Login",
-    description="Endpoint to log in a user by validating the input payload and returning an authentication token."
+    description=(
+        "Receives login requests. Validates the input payload and calls the login_user "
+        "business logic for authentication. Returns an authentication token if the credentials "
+        "are valid, otherwise an HTTP error is raised."
+    ),
 )
-def login_user_endpoint(payload: LoginRequest) -> LoginResponse:
+def login_user_endpoint(payload: LoginUserInput) -> LoginUserOutput:
     """
-    FastAPI endpoint that receives login requests, validates the input payload using pydantic,
-    calls the business logic function login_user for authentication, and returns an authentication
-    token if login is successful. Raises HTTPException with a 401 status code if authentication fails.
+    Endpoint to log in a user.
+    
+    - **email**: user's email address.
+    - **plain_password**: user's plaintext password.
+    
+    Returns a JSON object with a field `token` containing the authentication token.
     """
-    try:
-        token: str = login_user(email=payload.email, plain_password=payload.password)
-        return LoginResponse(token=token)
-    except ValueError as error:
-        raise HTTPException(status_code=401, detail=str(error))
+    token = login_user(email=payload.email, plain_password=payload.plain_password)
+    return LoginUserOutput(token=token)

@@ -153,16 +153,19 @@
         "name": "create_user_endpoint",
         "namespace": "app.modassembly.users.endpoints",
         "dependencies": [
-          "app.modassembly.auth.authenticate",
           "app.modassembly.users.business.create_user",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.auth.authenticate"
         ],
         "purpose": "FastAPI endpoint that receives user creation requests, authenticates the caller using the authenticate function, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/endpoints/create_user_endpoint.py",
+        "content": "from fastapi import APIRouter, Header, HTTPException\nfrom pydantic import BaseModel, EmailStr\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.users.business.create_user import create_user\nfrom app.modassembly.models.user.User import User\nfrom datetime import datetime\n\nrouter = APIRouter(\n    prefix=\"/users\",\n    tags=[\"Users\"],\n    responses={404: {\"description\": \"Not found\"}},\n)\n\nclass CreateUserInput(BaseModel):\n    username: str\n    email: EmailStr\n    password: str\n\nclass CreateUserOutput(BaseModel):\n    id: int\n    username: str\n    email: EmailStr\n    created_at: datetime\n\n@router.post(\n    \"/create\",\n    response_model=CreateUserOutput,\n    summary=\"Create a new user\",\n    description=(\n        \"Receives a user creation request along with an authentication token. \"\n        \"It authenticates the caller using the JWT token from the Authorization header, \"\n        \"extracts the payload, and calls the create_user business logic to create a new user. \"\n        \"Returns the created user details.\"\n    ),\n)\ndef create_user_endpoint(\n    payload: CreateUserInput, authorization: str = Header(...)\n) -> CreateUserOutput:\n    \"\"\"\n    Endpoint to create a new user.\n    \n    Expects:\n    - **Authorization** header with a Bearer token.\n    - JSON payload with `username`, `email`, and `password`.\n    \n    Returns a JSON object with user details:\n    - **id**: User's unique identifier.\n    - **username**: The username provided.\n    - **email**: The email address provided.\n    - **created_at**: Timestamp of user creation.\n    \"\"\"\n    # Extract the token from the \"Bearer <token>\" format.\n    try:\n        scheme, token = authorization.split()\n    except ValueError:\n        raise HTTPException(status_code=400, detail=\"Invalid authorization header format\")\n    if scheme.lower() != \"bearer\":\n        raise HTTPException(status_code=400, detail=\"Authorization scheme must be Bearer\")\n    \n    # Authenticate the caller. If the token is invalid, an exception will be raised.\n    _ = authenticate(token)\n    \n    # Create the user using business logic.\n    user: User = create_user(\n        username=payload.username,\n        email=payload.email,\n        password=payload.password\n    )\n    \n    return CreateUserOutput(\n        id=user.id,\n        username=user.username,\n        email=user.email,\n        created_at=user.created_at\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -217,8 +220,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/endpoints/login_user_endpoint.py",
+        "content": "from fastapi import APIRouter, HTTPException\nfrom pydantic import BaseModel, EmailStr\nfrom app.modassembly.users.business.login_user import login_user\n\nrouter = APIRouter(\n    prefix=\"/login\",\n    tags=[\"Authentication\"],\n    responses={404: {\"description\": \"Not found\"}},\n)\n\nclass LoginUserInput(BaseModel):\n    email: EmailStr\n    plain_password: str\n\nclass LoginUserOutput(BaseModel):\n    token: str\n\n@router.post(\n    \"\",\n    response_model=LoginUserOutput,\n    summary=\"User Login\",\n    description=(\n        \"Receives login requests. Validates the input payload and calls the login_user \"\n        \"business logic for authentication. Returns an authentication token if the credentials \"\n        \"are valid, otherwise an HTTP error is raised.\"\n    ),\n)\ndef login_user_endpoint(payload: LoginUserInput) -> LoginUserOutput:\n    \"\"\"\n    Endpoint to log in a user.\n    \n    - **email**: user's email address.\n    - **plain_password**: user's plaintext password.\n    \n    Returns a JSON object with a field `token` containing the authentication token.\n    \"\"\"\n    token = login_user(email=payload.email, plain_password=payload.plain_password)\n    return LoginUserOutput(token=token)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -285,16 +291,19 @@
         "name": "create_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
-          "app.modassembly.auth.authenticate",
           "app.modassembly.models.repository.Repository",
+          "app.modassembly.auth.authenticate",
           "app.modassembly.repositories.business.create_repository"
         ],
         "purpose": "FastAPI endpoint that receives repository creation requests, authenticates the user using the authenticate function, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/create_repository_endpoint.py",
+        "content": "from fastapi import APIRouter, Header, HTTPException\nfrom pydantic import BaseModel\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.repositories.business.create_repository import create_repository\nfrom app.modassembly.models.repository.Repository import Repository\n\nrouter = APIRouter(\n    prefix=\"/repositories\",\n    tags=[\"Repositories\"],\n    responses={401: {\"description\": \"Unauthorized\"}, 404: {\"description\": \"Not found\"}},\n)\n\nclass CreateRepositoryInput(BaseModel):\n    repo_name: str\n\nclass CreateRepositoryOutput(BaseModel):\n    id: int\n    name: str\n    user_id: int\n\n@router.post(\n    \"\",\n    response_model=CreateRepositoryOutput,\n    summary=\"Create Repository\",\n    description=(\n        \"Receives repository creation requests, authenticates the user using a Bearer token \"\n        \"provided in the Authorization header, validates the payload, calls the create_repository \"\n        \"business logic, and returns the created repository details.\"\n    ),\n)\ndef create_repository_endpoint(\n    payload: CreateRepositoryInput,\n    authorization: str = Header(..., description=\"Bearer token for authentication\"),\n) -> CreateRepositoryOutput:\n    \"\"\"\n    Endpoint to create a new repository for the authenticated user.\n    \n    - **repo_name**: Name of the repository to be created.\n    \n    The Authorization header must be in the format: 'Bearer <token>'.\n    \n    Returns a JSON object with the repository id, name, and associated user_id.\n    \"\"\"\n    if not authorization.startswith(\"Bearer \"):\n        raise HTTPException(status_code=401, detail=\"Invalid Authorization header format\")\n    token = authorization[7:]  # Remove 'Bearer ' prefix\n    auth_payload = authenticate(token)\n    \n    # Expecting the authentication payload to include the user_id.\n    user_id: int = auth_payload[\"user_id\"]\n    \n    repository: Repository = create_repository(user_id=user_id, repo_name=payload.repo_name)\n    \n    return CreateRepositoryOutput(\n        id=repository.id,\n        name=repository.name,\n        user_id=repository.user_id,\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -387,15 +396,18 @@
         "name": "delete_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
-          "app.modassembly.auth.authenticate",
-          "app.modassembly.repositories.business.delete_repository"
+          "app.modassembly.repositories.business.delete_repository",
+          "app.modassembly.auth.authenticate"
         ],
         "purpose": "FastAPI endpoint that receives repository deletion requests, authenticates the request using the authenticate function, validates the payload, and calls delete_repository business logic to remove the repository from both GitHub and the local database. Returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/delete_repository_endpoint.py",
+        "content": "from fastapi import APIRouter, Header, HTTPException\nfrom pydantic import BaseModel\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.repositories.business.delete_repository import delete_repository\n\nrouter = APIRouter(\n    prefix=\"/repository\",\n    tags=[\"Repository\"],\n)\n\nclass DeleteRepositoryInput(BaseModel):\n    repo_name: str\n\nclass DeleteRepositoryOutput(BaseModel):\n    message: str\n\n@router.delete(\n    \"\",\n    response_model=DeleteRepositoryOutput,\n    summary=\"Delete Repository\",\n    description=(\n        \"Deletes a repository after authenticating the user using a JWT token. \"\n        \"Requires the repository name in the request payload. The JWT token must be provided \"\n        \"in the 'Authorization' header in the format 'Bearer <token>'.\"\n    ),\n)\ndef delete_repository_endpoint(\n    payload: DeleteRepositoryInput,\n    authorization: str = Header(..., description=\"Bearer token\")\n) -> DeleteRepositoryOutput:\n    \"\"\"\n    Endpoint to delete a repository.\n\n    - **repo_name**: The name of the repository (without the username prefix) to be deleted.\n    \n    The user must supply a valid JWT token in the Authorization header.\n    \"\"\"\n    if not authorization.startswith(\"Bearer \"):\n        raise HTTPException(status_code=401, detail=\"Invalid authorization header format\")\n    token = authorization[len(\"Bearer \"):].strip()\n\n    user_info = authenticate(token)\n    if \"id\" not in user_info:\n        raise HTTPException(status_code=401, detail=\"Invalid token payload: missing user id\")\n    user_id = user_info[\"id\"]\n\n    message = delete_repository(user_id=user_id, repo_name=payload.repo_name)\n    return DeleteRepositoryOutput(message=message)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -543,16 +555,19 @@
         "name": "get_conversation_endpoint",
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
-          "app.modassembly.auth.authenticate",
           "app.modassembly.conversations.business.get_conversation",
-          "app.modassembly.models.conversation.Conversation"
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.auth.authenticate"
         ],
         "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, authenticates the request using the authenticate function, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/endpoints/get_conversation_endpoint.py",
+        "content": "from datetime import datetime\nfrom typing import Any, Dict\n\nfrom fastapi import APIRouter, Header, HTTPException, Query\nfrom pydantic import BaseModel\n\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.conversations.business.get_conversation import get_conversation\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter = APIRouter(\n    prefix=\"/conversations\",\n    tags=[\"Conversations\"],\n    responses={404: {\"description\": \"Not found\"}},\n)\n\n\nclass GetConversationOutput(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: datetime\n\n    @classmethod\n    def from_orm(cls, conversation: Conversation) -> \"GetConversationOutput\":\n        return cls(\n            id=conversation.id,\n            repository_id=conversation.repository_id,\n            conversation_type=conversation.conversation_type,\n            created_at=conversation.created_at,\n        )\n\n\n@router.get(\n    \"\",\n    response_model=GetConversationOutput,\n    summary=\"Retrieve a Conversation\",\n    description=(\n        \"Retrieves a conversation filtered by repository ID, user ID, and conversation type. \"\n        \"Requires a valid JWT token in the Authorization header (Bearer token). \"\n        \"The token is validated using the authenticate function. On success, returns the conversation details.\"\n    ),\n)\ndef get_conversation_endpoint(\n    repository_id: int = Query(..., description=\"ID of the repository\"),\n    user_id: int = Query(..., description=\"ID of the user owning the repository\"),\n    conversation_type: str = Query(..., description=\"Type of the conversation (e.g., brainstorm, architecture)\"),\n    authorization: str = Header(..., description=\"Bearer token for authentication\"),\n) -> GetConversationOutput:\n    \"\"\"\n    Endpoint to get a conversation associated with a repository for a user.\n    \n    Query Parameters:\n    - **repository_id**: The ID of the repository.\n    - **user_id**: The ID of the user (must match the repository owner).\n    - **conversation_type**: The type of conversation to retrieve.\n    \n    Header:\n    - **Authorization**: A Bearer token for authentication.\n    \n    Returns:\n    - A conversation object with details regarding the conversation.\n    \"\"\"\n    # Extract token from \"Bearer <token>\"\n    if not authorization.startswith(\"Bearer \"):\n        raise HTTPException(status_code=401, detail=\"Invalid authorization header format\")\n    token = authorization.split(\"Bearer \")[1].strip()\n    # Authenticate the token. The returned payload can be used for additional checks if needed.\n    auth_payload: Dict[str, Any] = authenticate(token)\n    \n    # Here you might validate that auth_payload contains the expected user_id if necessary.\n    # For now, we assume that the provided user_id is valid if the token is valid.\n    conversation: Conversation = get_conversation(\n        user_id=user_id,\n        repository_id=repository_id,\n        conversation_type=conversation_type,\n    )\n    return GetConversationOutput.from_orm(conversation)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -567,8 +582,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/auth/authenticate.py",
+        "content": "import os\nfrom typing import Any, Dict\n\nimport jwt\n\n\ndef authenticate(token: str) -> Dict[str, Any]:\n    secret_key: str = os.environ[\"SECRET_KEY\"]\n    algorithm: str = os.environ.get(\"JWT_ALGORITHM\", \"HS256\")\n    payload: Dict[str, Any] = jwt.decode(token, secret_key, algorithms=[algorithm])\n    return payload\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

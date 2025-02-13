@@ -1,49 +1,58 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
+from app.modassembly.auth.authenticate import authenticate
 from app.modassembly.repositories.business.create_repository import create_repository
 from app.modassembly.models.repository.Repository import Repository
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/repositories",
+    tags=["Repositories"],
+    responses={401: {"description": "Unauthorized"}, 404: {"description": "Not found"}},
+)
 
-class CreateRepositoryPayload(BaseModel):
-    user_id: int
+class CreateRepositoryInput(BaseModel):
     repo_name: str
 
-class RepositoryResponse(BaseModel):
+class CreateRepositoryOutput(BaseModel):
     id: int
     name: str
-    created_at: str
     user_id: int
 
 @router.post(
-    "/repositories",
-    response_model=RepositoryResponse,
-    status_code=status.HTTP_201_CREATED,
+    "",
+    response_model=CreateRepositoryOutput,
     summary="Create Repository",
     description=(
-        "Creates a new repository for the given user. Validates the payload, "
-        "ensures the user exists, constructs the repository name, checks that it "
-        "does not already exist in the GitHub 'Modular-Asembly' organization, and if "
-        "not, creates it via the GitHub API. The repository is then saved in the local "
-        "database and details are returned."
-    )
+        "Receives repository creation requests, authenticates the user using a Bearer token "
+        "provided in the Authorization header, validates the payload, calls the create_repository "
+        "business logic, and returns the created repository details."
+    ),
 )
-def create_repository_endpoint(payload: CreateRepositoryPayload) -> RepositoryResponse:
+def create_repository_endpoint(
+    payload: CreateRepositoryInput,
+    authorization: str = Header(..., description="Bearer token for authentication"),
+) -> CreateRepositoryOutput:
     """
-    FastAPI endpoint to create a new repository.
-
-    Parameters:
-    - payload: CreateRepositoryPayload
-        - user_id: The ID of the user who owns the repository.
-        - repo_name: The desired name of the repository.
-
-    Returns:
-    - RepositoryResponse containing the repository id, name, created_at timestamp, and user_id.
+    Endpoint to create a new repository for the authenticated user.
+    
+    - **repo_name**: Name of the repository to be created.
+    
+    The Authorization header must be in the format: 'Bearer <token>'.
+    
+    Returns a JSON object with the repository id, name, and associated user_id.
     """
-    repository: Repository = create_repository(payload.user_id, payload.repo_name)
-    return RepositoryResponse(
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid Authorization header format")
+    token = authorization[7:]  # Remove 'Bearer ' prefix
+    auth_payload = authenticate(token)
+    
+    # Expecting the authentication payload to include the user_id.
+    user_id: int = auth_payload["user_id"]
+    
+    repository: Repository = create_repository(user_id=user_id, repo_name=payload.repo_name)
+    
+    return CreateRepositoryOutput(
         id=repository.id,
         name=repository.name,
-        created_at=repository.created_at.isoformat(),
-        user_id=repository.user_id
+        user_id=repository.user_id,
     )

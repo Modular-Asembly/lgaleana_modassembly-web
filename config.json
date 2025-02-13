@@ -1,0 +1,68 @@
+{
+  "name": "modassembly-web",
+  "user": "lgaleana",
+  "architecture": [
+    {
+      "design": {
+        "type": "infrastructure",
+        "name": "CloudRun",
+        "namespace": "External",
+        "config": {}
+      },
+      "file": null,
+      "update_status": "up_to_date",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "main",
+        "namespace": "app",
+        "dependencies": [
+          "Other datamodels or functions"
+        ],
+        "purpose": "1) Calls load_dotenv().\n2) Initializes the FastAPI app.\n3) Adds CORSMiddleware with *.\n4) Adds all the application routers.\n5) Adds all the application models.\n6) Calls Base.metadata.create_all(engine).",
+        "pypi_packages": [
+          "fastapi==0.115.6",
+          "mypy==1.15.0",
+          "pydantic==2.10.4",
+          "python-dotenv==1.0.1",
+          "uvicorn==0.34.0"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "infrastructure",
+        "name": "CloudSQL",
+        "namespace": "External",
+        "config": {}
+      },
+      "file": null,
+      "update_status": "up_to_date",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "get_sql_session",
+        "namespace": "app.modassembly.database.sql",
+        "dependencies": [],
+        "purpose": "1) Initializes Base, engine and SessionLocal. Uses the DB_URL environment variable.\n2) Yields a SessionLocal instance.",
+        "pypi_packages": [
+          "psycopg2-binary==2.9.10",
+          "sqlalchemy==2.0.36"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    }
+  ],
+  "github": "https://github.com/Modular-Asembly/lgaleana_modassembly-web"
+}

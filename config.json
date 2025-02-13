@@ -153,18 +153,16 @@
         "name": "create_user_endpoint",
         "namespace": "app.modassembly.users.endpoints",
         "dependencies": [
+          "app.modassembly.auth.authenticate",
           "app.modassembly.users.business.create_user",
           "app.modassembly.models.user.User"
         ],
-        "purpose": "FastAPI endpoint that receives user creation requests, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
+        "purpose": "FastAPI endpoint that receives user creation requests, authenticates the caller using the authenticate function, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/users/endpoints/create_user_endpoint.py",
-        "content": "from fastapi import APIRouter, HTTPException, status\nfrom pydantic import BaseModel, EmailStr\nfrom app.modassembly.users.business.create_user import create_user\nfrom app.modassembly.models.user.User import User  # type: ignore\n\nrouter = APIRouter()\n\nclass CreateUserPayload(BaseModel):\n    username: str\n    email: EmailStr\n    password: str\n\nclass UserResponse(BaseModel):\n    id: int\n    username: str\n    email: EmailStr\n    created_at: str\n\n@router.post(\n    \"/users\",\n    response_model=UserResponse,\n    status_code=status.HTTP_201_CREATED,\n    summary=\"Create a new user\",\n    description=\"Endpoint to create a new user. Expects a JSON payload with username, email, and password.\"\n)\ndef create_user_endpoint(payload: CreateUserPayload) -> UserResponse:\n    \"\"\"\n    FastAPI endpoint that receives user creation requests, extracts the payload,\n    and calls create_user business logic. Returns appropriate HTTP responses.\n    \"\"\"\n    try:\n        user: User = create_user(payload.username, payload.email, payload.password)\n    except Exception as e:\n        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))\n    \n    return UserResponse(\n        id=user.id,\n        username=user.username,\n        email=user.email,\n        created_at=user.created_at.isoformat()\n    )\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -215,15 +213,12 @@
         "dependencies": [
           "app.modassembly.users.business.login_user"
         ],
-        "purpose": "FastAPI endpoint that receives login requests, validates the input payload, calls login_user for authentication, and returns an appropriate HTTP response with authentication token or error message.",
+        "purpose": "FastAPI endpoint that receives login requests, validates the input payload, calls login_user for authentication, and returns an HTTP response with an authentication token or error message. This endpoint does not require prior authentication.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/users/endpoints/login_user_endpoint.py",
-        "content": "from fastapi import APIRouter, HTTPException\nfrom pydantic import BaseModel\nfrom app.modassembly.users.business.login_user import login_user\n\nrouter = APIRouter()\n\nclass LoginRequest(BaseModel):\n    email: str\n    password: str\n\nclass LoginResponse(BaseModel):\n    token: str\n\n@router.post(\n    \"/login\",\n    response_model=LoginResponse,\n    summary=\"User Login\",\n    description=\"Endpoint to log in a user by validating the input payload and returning an authentication token.\"\n)\ndef login_user_endpoint(payload: LoginRequest) -> LoginResponse:\n    \"\"\"\n    FastAPI endpoint that receives login requests, validates the input payload using pydantic,\n    calls the business logic function login_user for authentication, and returns an authentication\n    token if login is successful. Raises HTTPException with a 401 status code if authentication fails.\n    \"\"\"\n    try:\n        token: str = login_user(email=payload.email, plain_password=payload.password)\n        return LoginResponse(token=token)\n    except ValueError as error:\n        raise HTTPException(status_code=401, detail=str(error))\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -290,18 +285,16 @@
         "name": "create_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
+          "app.modassembly.auth.authenticate",
           "app.modassembly.models.repository.Repository",
           "app.modassembly.repositories.business.create_repository"
         ],
-        "purpose": "FastAPI endpoint that receives repository creation requests, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
+        "purpose": "FastAPI endpoint that receives repository creation requests, authenticates the user using the authenticate function, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/repositories/endpoints/create_repository_endpoint.py",
-        "content": "from fastapi import APIRouter, status\nfrom pydantic import BaseModel\nfrom app.modassembly.repositories.business.create_repository import create_repository\nfrom app.modassembly.models.repository.Repository import Repository\n\nrouter = APIRouter()\n\nclass CreateRepositoryPayload(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass RepositoryResponse(BaseModel):\n    id: int\n    name: str\n    created_at: str\n    user_id: int\n\n@router.post(\n    \"/repositories\",\n    response_model=RepositoryResponse,\n    status_code=status.HTTP_201_CREATED,\n    summary=\"Create Repository\",\n    description=(\n        \"Creates a new repository for the given user. Validates the payload, \"\n        \"ensures the user exists, constructs the repository name, checks that it \"\n        \"does not already exist in the GitHub 'Modular-Asembly' organization, and if \"\n        \"not, creates it via the GitHub API. The repository is then saved in the local \"\n        \"database and details are returned.\"\n    )\n)\ndef create_repository_endpoint(payload: CreateRepositoryPayload) -> RepositoryResponse:\n    \"\"\"\n    FastAPI endpoint to create a new repository.\n\n    Parameters:\n    - payload: CreateRepositoryPayload\n        - user_id: The ID of the user who owns the repository.\n        - repo_name: The desired name of the repository.\n\n    Returns:\n    - RepositoryResponse containing the repository id, name, created_at timestamp, and user_id.\n    \"\"\"\n    repository: Repository = create_repository(payload.user_id, payload.repo_name)\n    return RepositoryResponse(\n        id=repository.id,\n        name=repository.name,\n        created_at=repository.created_at.isoformat(),\n        user_id=repository.user_id\n    )\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -394,17 +387,15 @@
         "name": "delete_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
+          "app.modassembly.auth.authenticate",
           "app.modassembly.repositories.business.delete_repository"
         ],
-        "purpose": "FastAPI endpoint that receives repository deletion requests, validates the request payload (user identification and repository name), calls the delete_repository business logic to remove the repository both from GitHub and the local database, and returns an appropriate HTTP response.",
+        "purpose": "FastAPI endpoint that receives repository deletion requests, authenticates the request using the authenticate function, validates the payload, and calls delete_repository business logic to remove the repository from both GitHub and the local database. Returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/repositories/endpoints/delete_repository_endpoint.py",
-        "content": "from fastapi import APIRouter, HTTPException, status\nfrom pydantic import BaseModel\nfrom app.modassembly.repositories.business.delete_repository import delete_repository\n\nrouter = APIRouter()\n\nclass DeleteRepositoryPayload(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass DeleteRepositoryResponse(BaseModel):\n    message: str\n\n@router.delete(\n    \"/repositories\",\n    response_model=DeleteRepositoryResponse,\n    status_code=status.HTTP_200_OK,\n    summary=\"Delete Repository\",\n    description=(\n        \"Deletes a repository for a given user. The endpoint validates the request payload, \"\n        \"calls the business logic function to delete the repository from GitHub and the local database, \"\n        \"and returns a confirmation message upon successful deletion.\"\n    )\n)\ndef delete_repository_endpoint(payload: DeleteRepositoryPayload) -> DeleteRepositoryResponse:\n    \"\"\"\n    FastAPI endpoint that receives repository deletion requests.\n    \n    Parameters:\n        payload (DeleteRepositoryPayload): The payload containing the user_id and the repository name.\n    \n    Returns:\n        DeleteRepositoryResponse: A response containing a message indicating the outcome of the deletion.\n    \n    Raises:\n        HTTPException: If deletion fails due to validation or processing errors.\n    \"\"\"\n    message: str = delete_repository(payload.user_id, payload.repo_name)\n    return DeleteRepositoryResponse(message=message)\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     },
     {
@@ -552,18 +543,32 @@
         "name": "get_conversation_endpoint",
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
+          "app.modassembly.auth.authenticate",
           "app.modassembly.conversations.business.get_conversation",
           "app.modassembly.models.conversation.Conversation"
         ],
-        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
+        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, authenticates the request using the authenticate function, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/conversations/endpoints/get_conversation_endpoint.py",
-        "content": "from datetime import datetime\nfrom fastapi import APIRouter, Query\nfrom pydantic import BaseModel\nfrom app.modassembly.conversations.business.get_conversation import get_conversation\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter = APIRouter()\n\nclass GetConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: datetime\n\n    class Config:\n        orm_mode = True\n\n@router.get(\n    \"/conversation\",\n    response_model=GetConversationResponse,\n    summary=\"Retrieve a conversation\",\n    description=(\n        \"Retrieves a single conversation related to a given repository. \"\n        \"Requires query parameters: repository_id (int), user_id (int), and conversation_type (str). \"\n        \"Validates repository ownership before returning the conversation.\"\n    ),\n)\ndef get_conversation_endpoint(\n    repository_id: int = Query(..., description=\"The repository ID\"),\n    user_id: int = Query(..., description=\"The user ID for ownership validation\"),\n    conversation_type: str = Query(..., description=\"The type of the conversation\")\n) -> GetConversationResponse:\n    \"\"\"\n    FastAPI endpoint to retrieve a conversation.\n\n    Parameters:\n    - repository_id: The ID of the repository.\n    - user_id: The ID of the user (for repository ownership validation).\n    - conversation_type: The type of conversation to retrieve.\n\n    Returns:\n    - GetConversationResponse: The details of the conversation.\n    \n    Raises:\n    - ValueError: If the repository does not belong to the user or no matching conversation is found.\n    \"\"\"\n    conversation: Conversation = get_conversation(user_id, repository_id, conversation_type)\n    return GetConversationResponse.from_orm(conversation)\n"
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "authenticate",
+        "namespace": "app.modassembly.auth",
+        "dependencies": [],
+        "purpose": "Verifies the JWT token from the request headers using a secret key (retrieved from an environment variable). Returns the authenticated user information on success; otherwise, raises an authentication error.",
+        "pypi_packages": [
+          "pyjwt==2.6.0"
+        ],
+        "is_endpoint": false
       },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     }
   ],

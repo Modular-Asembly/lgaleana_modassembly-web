@@ -551,14 +551,20 @@
         "name": "list_conversations_endpoint",
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.conversations.business.list_conversations"
         ],
         "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, validates that the repository belongs to the given user, and returns all conversations of that type related to the repository by calling the list_conversations business function. Returns an appropriate HTTP response with the filtered list of conversations.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/endpoints/list_conversations_endpoint.py",
+        "content": "from datetime import datetime\nfrom typing import List\n\nfrom fastapi import APIRouter, HTTPException, Query, Depends\nfrom pydantic import BaseModel\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.conversations.business.list_conversations import list_conversations\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter = APIRouter()\n\nclass ConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: str\n\n@router.get(\n    \"/conversations\",\n    response_model=List[ConversationResponse],\n    summary=\"List Conversations\",\n    description=(\n        \"Retrieve all conversations for a given repository filtered by conversation type \"\n        \"after validating that the repository belongs to the provided user. \"\n        \"Query parameters: repository_id, user_id, and conversation_type.\"\n    )\n)\ndef list_conversations_endpoint(\n    repository_id: int,\n    user_id: int,\n    conversation_type: str = Query(..., description=\"Type of conversation to filter by\"),\n    db: Session = Depends(get_sql_session)\n) -> List[ConversationResponse]:\n    \"\"\"\n    FastAPI endpoint that receives repository_id, user_id, and conversation_type as query\n    parameters, validates that the repository belongs to the specified user, and returns all\n    conversations of that type related to the repository.\n\n    Parameters:\n        repository_id (int): The ID of the repository.\n        user_id (int): The ID of the user.\n        conversation_type (str): The conversation type to filter by.\n        db (Session): SQLAlchemy database session dependency.\n\n    Returns:\n        List[ConversationResponse]: A list of conversations filtered by conversation type.\n    \"\"\"\n    repository: Repository | None = db.query(Repository).filter(Repository.id == repository_id).first()\n    if repository is None:\n        raise HTTPException(status_code=404, detail=\"Repository not found\")\n    if repository.user_id != user_id:\n        raise HTTPException(status_code=403, detail=\"Repository does not belong to the specified user\")\n    \n    conversations: List[Conversation] = list_conversations(repository_id)\n    filtered_conversations = [\n        conv for conv in conversations if conv.conversation_type == conversation_type\n    ]\n    \n    return [\n        ConversationResponse(\n            id=conv.id,\n            repository_id=conv.repository_id,\n            conversation_type=conv.conversation_type,\n            created_at=conv.created_at.isoformat() if isinstance(conv.created_at, datetime) else str(conv.created_at)\n        )\n        for conv in filtered_conversations\n    ]\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

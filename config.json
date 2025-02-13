@@ -342,6 +342,59 @@
       },
       "update_status": "up_to_date",
       "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "delete_github_repository",
+        "namespace": "app.modassembly.github.business",
+        "dependencies": [
+          "app.modassembly.github.utils.check_github_repo_exists"
+        ],
+        "purpose": "Deletes a repository from the GitHub organization 'Modular-Asembly'. It retrieves the authentication token from the environment variable GITHUB_TOKEN, constructs the repository name as '{user_name}_{repo_name}', and calls the GitHub API to delete the repository if it exists. Returns status of deletion.",
+        "pypi_packages": [
+          "requests==2.31.0"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "delete_repository",
+        "namespace": "app.modassembly.repositories.business",
+        "dependencies": [
+          "app.modassembly.github.business.delete_github_repository",
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.models.user.User"
+        ],
+        "purpose": "Deletes a repository for a given user. The function validates the input, checks if the repository exists in the local database, calls delete_github_repository to remove it from GitHub, and then deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "delete_repository_endpoint",
+        "namespace": "app.modassembly.repositories.endpoints",
+        "dependencies": [
+          "app.modassembly.repositories.business.delete_repository"
+        ],
+        "purpose": "FastAPI endpoint that receives repository deletion requests, validates the request payload (user identification and repository name), calls the delete_repository business logic to remove the repository both from GitHub and the local database, and returns an appropriate HTTP response.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
     }
   ],
   "github": "https://github.com/Modular-Asembly/lgaleana_modassembly-web"

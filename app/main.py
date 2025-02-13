@@ -29,6 +29,8 @@ from app.modassembly.users.endpoints.login_user_endpoint import router
 app.include_router(router)
 from app.modassembly.repositories.endpoints.create_repository_endpoint import router
 app.include_router(router)
+from app.modassembly.repositories.endpoints.delete_repository_endpoint import router
+app.include_router(router)
 
 # Database
 

@@ -33,7 +33,7 @@
       },
       "file": {
         "path": "app/main.py",
-        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
       },
       "update_status": "up_to_date",
       "is_deployed": false
@@ -357,8 +357,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/github/business/delete_github_repository.py",
+        "content": "import os\nimport requests\nfrom typing import Final\n\nfrom app.modassembly.github.utils.check_github_repo_exists import check_github_repo_exists\n\ndef delete_github_repository(user_name: str, repo_name: str) -> str:\n    \"\"\"\n    Deletes a repository from the GitHub organization 'Modular-Asembly'. \n    It retrieves the authentication token from the environment variable GITHUB_TOKEN, \n    constructs the repository name as '{user_name}_{repo_name}', and calls the GitHub API \n    to delete the repository if it exists.\n    \n    Parameters:\n        user_name (str): The GitHub username.\n        repo_name (str): The repository name (without prefix).\n    \n    Returns:\n        str: A message indicating successful deletion.\n    \n    Raises:\n        ValueError: If the repository does not exist in the GitHub organization.\n        requests.HTTPError: For any HTTP-related error returned by the GitHub API.\n        KeyError: If required environment variables are missing.\n    \"\"\"\n    github_org: Final[str] = os.environ[\"GITHUB_ORG\"]\n    token: Final[str] = os.environ[\"GITHUB_TOKEN\"]\n    repo_full_name: str = f\"{user_name}_{repo_name}\"\n    \n    if not check_github_repo_exists(user_name, repo_name):\n        raise ValueError(\n            f\"Repository {repo_full_name} does not exist in organization {github_org}\"\n        )\n    \n    url: str = f\"https://api.github.com/repos/{github_org}/{repo_full_name}\"\n    headers: dict[str, str] = {\n        \"Authorization\": f\"token {token}\",\n        \"Accept\": \"application/vnd.github+json\"\n    }\n    \n    response: requests.Response = requests.delete(url, headers=headers)\n    response.raise_for_status()\n    \n    return \"Repository deleted successfully\"\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -367,8 +370,8 @@
         "name": "delete_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
-          "app.modassembly.github.business.delete_github_repository",
           "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.github.business.delete_github_repository",
           "app.modassembly.models.repository.Repository",
           "app.modassembly.models.user.User"
         ],
@@ -376,8 +379,11 @@
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/business/delete_repository.py",
+        "content": "from typing import Iterator\n\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.github.business.delete_github_repository import delete_github_repository\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\ndef delete_repository(user_id: int, repo_name: str) -> str:\n    \"\"\"\n    Deletes a repository for a given user. The function validates the input, checks if the repository exists\n    in the local database, calls delete_github_repository to remove it from GitHub, and then deletes the \n    repository record from the local database using get_sql_session.\n    \n    Parameters:\n        user_id (int): The ID of the user owning the repository.\n        repo_name (str): The base repository name (without the user prefix).\n        \n    Returns:\n        str: A message indicating that the repository was deleted.\n    \n    Raises:\n        ValueError: If the user or repository is not found.\n        requests.HTTPError: If there's an HTTP error during deletion from GitHub.\n        KeyError: If required environment variables are missing.\n    \"\"\"\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    # Fetch the User to get the username needed to construct full repository name.\n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(f\"User with id {user_id} not found\")\n    \n    # Construct the full repository name as stored in the database.\n    full_repo_name: str = f\"{user.username}_{repo_name}\"\n    \n    # Find the repository record in the local database.\n    repository: Repository | None = (\n        db.query(Repository)\n        .filter(Repository.user_id == user_id, Repository.name == full_repo_name)\n        .first()\n    )\n    if repository is None:\n        raise ValueError(f\"Repository '{full_repo_name}' not found for user with id {user_id}\")\n    \n    # Delete repository from GitHub.\n    delete_github_repository(user.username, repo_name)\n    \n    # Delete repository record from the local database.\n    db.delete(repository)\n    db.commit()\n    \n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    \n    return \"Repository deleted successfully\"\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -392,8 +398,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/delete_repository_endpoint.py",
+        "content": "from fastapi import APIRouter, HTTPException, status\nfrom pydantic import BaseModel\nfrom app.modassembly.repositories.business.delete_repository import delete_repository\n\nrouter = APIRouter()\n\nclass DeleteRepositoryPayload(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass DeleteRepositoryResponse(BaseModel):\n    message: str\n\n@router.delete(\n    \"/repositories\",\n    response_model=DeleteRepositoryResponse,\n    status_code=status.HTTP_200_OK,\n    summary=\"Delete Repository\",\n    description=(\n        \"Deletes a repository for a given user. The endpoint validates the request payload, \"\n        \"calls the business logic function to delete the repository from GitHub and the local database, \"\n        \"and returns a confirmation message upon successful deletion.\"\n    )\n)\ndef delete_repository_endpoint(payload: DeleteRepositoryPayload) -> DeleteRepositoryResponse:\n    \"\"\"\n    FastAPI endpoint that receives repository deletion requests.\n    \n    Parameters:\n        payload (DeleteRepositoryPayload): The payload containing the user_id and the repository name.\n    \n    Returns:\n        DeleteRepositoryResponse: A response containing a message indicating the outcome of the deletion.\n    \n    Raises:\n        HTTPException: If deletion fails due to validation or processing errors.\n    \"\"\"\n    message: str = delete_repository(payload.user_id, payload.repo_name)\n    return DeleteRepositoryResponse(message=message)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

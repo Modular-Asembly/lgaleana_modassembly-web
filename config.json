@@ -154,15 +154,18 @@
         "namespace": "app.modassembly.users.endpoints",
         "dependencies": [
           "app.modassembly.auth.authenticate",
-          "app.modassembly.users.business.create_user",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.users.business.create_user"
         ],
         "purpose": "FastAPI endpoint that receives user creation requests. It uses OAuth2PasswordBearer via the authenticate function to secure the endpoint, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/endpoints/create_user_endpoint.py",
+        "content": "from datetime import datetime\nfrom typing import Any, Dict\n\nfrom fastapi import APIRouter, Depends, HTTPException, status\nfrom pydantic import BaseModel, EmailStr, Field\n\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.models.user.User import User  # SQLAlchemy model\nfrom app.modassembly.users.business.create_user import create_user\n\nrouter = APIRouter(\n    prefix=\"/users\",\n    tags=[\"Users\"],\n    responses={404: {\"description\": \"Not found\"}},\n)\n\n\nclass CreateUserInput(BaseModel):\n    username: str = Field(..., title=\"Username\", description=\"Unique username for the user\")\n    email: EmailStr = Field(..., title=\"Email\", description=\"User's email address\")\n    password: str = Field(..., title=\"Password\", description=\"User's plaintext password\")\n\n\nclass CreateUserOutput(BaseModel):\n    id: int = Field(..., title=\"User ID\", description=\"The unique identifier of the created user\")\n    username: str = Field(..., title=\"Username\", description=\"Unique username for the user\")\n    email: EmailStr = Field(..., title=\"Email\", description=\"User's email address\")\n    created_at: datetime = Field(..., title=\"Creation Time\", description=\"Timestamp when the user was created\")\n\n\n@router.post(\n    \"/create\",\n    response_model=CreateUserOutput,\n    status_code=status.HTTP_201_CREATED,\n    summary=\"Create a New User\",\n    description=(\n        \"Creates a new user by accepting username, email, and password. \"\n        \"Requires authentication via OAuth2PasswordBearer. Returns the details of the newly created user.\"\n    ),\n)\ndef create_user_endpoint(\n    payload: CreateUserInput,\n    token_payload: Dict[str, Any] = Depends(authenticate),\n) -> CreateUserOutput:\n    \"\"\"\n    Create User Endpoint\n\n    This endpoint creates a new user after validating the \n    provided data and ensuring the request is authenticated.\n\n    - **username**: Unique username for the user.\n    - **email**: User's email address.\n    - **password**: Plaintext password which will be hashed.\n    \n    Returns the newly created user's details.\n    \"\"\"\n    # Call business logic to create the user\n    new_user: User = create_user(\n        username=payload.username,\n        email=payload.email,\n        password=payload.password,\n    )\n    \n    # Construct output; assuming the User model has id, username, email, and created_at attributes.\n    return CreateUserOutput(\n        id=new_user.id, \n        username=new_user.username, \n        email=new_user.email, \n        created_at=new_user.created_at\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -190,9 +193,9 @@
         "name": "login_user",
         "namespace": "app.modassembly.users.business",
         "dependencies": [
-          "app.modassembly.users.utils.verify_password",
           "app.modassembly.models.user.User",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.users.utils.verify_password"
         ],
         "purpose": "Logs in a user by retrieving the user record using get_sql_session, comparing the provided password with the stored hashed password using verify_password, and returning a token or error accordingly.",
         "pypi_packages": [],
@@ -265,11 +268,11 @@
         "name": "create_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
-          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.github.business.create_github_repository",
           "app.modassembly.models.user.User",
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.conversations.business.create_conversations_for_repository",
-          "app.modassembly.models.repository.Repository",
-          "app.modassembly.github.business.create_github_repository"
+          "app.modassembly.models.repository.Repository"
         ],
         "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. After saving the repository in the local database, it calls create_conversations_for_repository to add two default conversations ('brainstorm' and 'architecture').",
         "pypi_packages": [],
@@ -289,15 +292,18 @@
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
           "app.modassembly.auth.authenticate",
-          "app.modassembly.models.repository.Repository",
-          "app.modassembly.repositories.business.create_repository"
+          "app.modassembly.repositories.business.create_repository",
+          "app.modassembly.models.repository.Repository"
         ],
         "purpose": "FastAPI endpoint that receives repository creation requests. It uses OAuth2PasswordBearer via the authenticate function to secure the endpoint, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/create_repository_endpoint.py",
+        "content": "from typing import Any, Dict\n\nfrom fastapi import APIRouter, Depends, HTTPException, status\nfrom pydantic import BaseModel, Field\n\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.repositories.business.create_repository import create_repository\n\nrouter: APIRouter = APIRouter(\n    prefix=\"/repositories\",\n    tags=[\"Repositories\"],\n    responses={404: {\"description\": \"Not found\"}},\n)\n\nclass CreateRepositoryInput(BaseModel):\n    repo_name: str = Field(..., description=\"The name of the repository to create.\")\n\nclass CreateRepositoryOutput(BaseModel):\n    id: int = Field(..., description=\"The repository ID.\")\n    name: str = Field(..., description=\"The full constructed repository name.\")\n    user_id: int = Field(..., description=\"ID of the owner user.\")\n\n@router.post(\n    \"/create\",\n    response_model=CreateRepositoryOutput,\n    summary=\"Create a new repository\",\n    description=(\n        \"Creates a new repository for the authenticated user. \"\n        \"Validates the payload, calls the repository creation business logic, \"\n        \"and returns repository details upon successful creation.\"\n    ),\n)\ndef create_repository_endpoint(\n    payload: CreateRepositoryInput,\n    user: Dict[str, Any] = Depends(authenticate),\n) -> CreateRepositoryOutput:\n    \"\"\"\n    Endpoint to create a new repository.\n\n    - **repo_name**: The desired repository name.\n    - The authenticated user's ID is extracted from the JWT token payload.\n    \"\"\"\n    try:\n        user_id: int = int(user[\"user_id\"])\n    except (KeyError, ValueError) as exc:\n        raise HTTPException(\n            status_code=status.HTTP_401_UNAUTHORIZED,\n            detail=\"Invalid authentication token payload\",\n        ) from exc\n\n    repository: Repository = create_repository(user_id=user_id, repo_name=payload.repo_name)\n    return CreateRepositoryOutput(\n        id=repository.id,\n        name=repository.name,\n        user_id=repository.user_id,\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -368,10 +374,10 @@
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
           "app.modassembly.github.business.delete_github_repository",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.conversations.business.delete_conversations_for_repository",
           "app.modassembly.models.user.User",
-          "app.modassembly.models.repository.Repository"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.conversations.business.delete_conversations_for_repository"
         ],
         "purpose": "Deletes a repository for a given user. Validates input, checks if the repository exists in the local database, first calls delete_github_repository to remove it from GitHub, then calls delete_conversations_for_repository to remove all conversations associated with the repository, and finally deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
         "pypi_packages": [],
@@ -397,8 +403,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/delete_repository_endpoint.py",
+        "content": "from fastapi import APIRouter, Depends, HTTPException, status\nfrom pydantic import BaseModel\n\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.repositories.business.delete_repository import delete_repository\n\nrouter = APIRouter(\n    prefix=\"/repositories\",\n    tags=[\"Repositories\"],\n)\n\nclass DeleteRepositoryInput(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass DeleteRepositoryOutput(BaseModel):\n    detail: str\n\n@router.delete(\n    \"/delete\",\n    response_model=DeleteRepositoryOutput,\n    summary=\"Delete a Repository\",\n    description=(\n        \"Deletes a repository from GitHub and from the local database. \"\n        \"This endpoint is secured with OAuth2PasswordBearer via the authenticate dependency \"\n        \"and requires a valid JWT token in the Authorization header. \"\n        \"Pass the user_id and repo_name in the request body.\"\n    ),\n)\ndef delete_repository_endpoint(\n    payload: DeleteRepositoryInput, \n    user_info: dict = Depends(authenticate)\n) -> DeleteRepositoryOutput:\n    \"\"\"\n    Delete Repository Endpoint\n\n    - **user_id**: ID of the user who owns the repository.\n    - **repo_name**: The repository name to delete (without username prefix).\n    \n    Returns a JSON response with the deletion confirmation message.\n    \"\"\"\n    deletion_message: str = delete_repository(user_id=payload.user_id, repo_name=payload.repo_name)\n    return DeleteRepositoryOutput(detail=deletion_message)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -407,8 +416,8 @@
         "name": "Conversation",
         "namespace": "app.modassembly.models.conversation",
         "dependencies": [
-          "app.modassembly.models.repository.Repository",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.repository.Repository"
         ],
         "fields": [
           {
@@ -525,9 +534,9 @@
         "name": "get_conversation",
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
-          "app.modassembly.models.repository.Repository",
           "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.conversation.Conversation"
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.models.repository.Repository"
         ],
         "purpose": "Retrieves a single conversation related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then retrieves the conversation from Conversation records using get_sql_session. Returns the matching Conversation record or an error if not found.",
         "pypi_packages": [],
@@ -554,8 +563,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/endpoints/get_conversation_endpoint.py",
+        "content": "from datetime import datetime\nfrom typing import Any\n\nfrom fastapi import APIRouter, Depends, Query\nfrom pydantic import BaseModel\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.auth.authenticate import authenticate\nfrom app.modassembly.conversations.business.get_conversation import get_conversation\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter: APIRouter = APIRouter(\n    prefix=\"/conversations\",\n    tags=[\"Conversations\"],\n    responses={404: {\"description\": \"Not found\"}}\n)\n\nclass ConversationOutput(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: datetime\n\n    class Config:\n        orm_mode = True\n\n@router.get(\n    \"/\",\n    response_model=ConversationOutput,\n    summary=\"Get Conversation\",\n    description=(\n        \"Retrieves a conversation belonging to a repository. \"\n        \"You must provide the repository ID, user ID, and conversation type \"\n        \"as query parameters. The endpoint is secured with OAuth2 via JWT token.\"\n    ),\n)\ndef get_conversation_endpoint(\n    repository_id: int = Query(..., description=\"The ID of the repository\"),\n    user_id: int = Query(..., description=\"The ID of the owner user\"),\n    conversation_type: str = Query(..., description=\"The type of the conversation (e.g., brainstorm, architecture)\"),\n    token_payload: dict[str, Any] = Depends(authenticate)\n) -> ConversationOutput:\n    \"\"\"\n    Endpoint to retrieve a conversation for a given repository by conversation type.\n    \n    Query Parameters:\n    - repository_id: The repository's unique identifier.\n    - user_id: The user's unique identifier who owns the repository.\n    - conversation_type: The type of the conversation to retrieve.\n    \n    Returns:\n        A conversation record matching the query.\n    \"\"\"\n    conversation: Conversation = get_conversation(user_id, repository_id, conversation_type)\n    return ConversationOutput.from_orm(conversation)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -571,8 +583,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/auth/authenticate.py",
+        "content": "import os\nfrom typing import Any, Dict\n\nimport jwt\nfrom fastapi import Depends, HTTPException, status\nfrom fastapi.security import OAuth2PasswordBearer\n\noauth2_scheme: OAuth2PasswordBearer = OAuth2PasswordBearer(tokenUrl=\"/login\")\n\ndef authenticate(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:\n    secret_key: str = os.environ[\"SECRET_KEY\"]\n    try:\n        payload: Dict[str, Any] = jwt.decode(token, secret_key, algorithms=[\"HS256\"])\n        return payload\n    except jwt.PyJWTError as exc:\n        raise HTTPException(\n            status_code=status.HTTP_401_UNAUTHORIZED,\n            detail=\"Could not validate credentials\",\n            headers={\"WWW-Authenticate\": \"Bearer\"},\n        ) from exc\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

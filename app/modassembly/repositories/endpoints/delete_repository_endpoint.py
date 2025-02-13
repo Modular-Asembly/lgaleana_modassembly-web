@@ -1,48 +1,43 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+
 from app.modassembly.auth.authenticate import authenticate
 from app.modassembly.repositories.business.delete_repository import delete_repository
 
 router = APIRouter(
-    prefix="/repository",
-    tags=["Repository"],
+    prefix="/repositories",
+    tags=["Repositories"],
 )
 
 class DeleteRepositoryInput(BaseModel):
+    user_id: int
     repo_name: str
 
 class DeleteRepositoryOutput(BaseModel):
-    message: str
+    detail: str
 
 @router.delete(
-    "",
+    "/delete",
     response_model=DeleteRepositoryOutput,
-    summary="Delete Repository",
+    summary="Delete a Repository",
     description=(
-        "Deletes a repository after authenticating the user using a JWT token. "
-        "Requires the repository name in the request payload. The JWT token must be provided "
-        "in the 'Authorization' header in the format 'Bearer <token>'."
+        "Deletes a repository from GitHub and from the local database. "
+        "This endpoint is secured with OAuth2PasswordBearer via the authenticate dependency "
+        "and requires a valid JWT token in the Authorization header. "
+        "Pass the user_id and repo_name in the request body."
     ),
 )
 def delete_repository_endpoint(
-    payload: DeleteRepositoryInput,
-    authorization: str = Header(..., description="Bearer token")
+    payload: DeleteRepositoryInput, 
+    user_info: dict = Depends(authenticate)
 ) -> DeleteRepositoryOutput:
     """
-    Endpoint to delete a repository.
+    Delete Repository Endpoint
 
-    - **repo_name**: The name of the repository (without the username prefix) to be deleted.
+    - **user_id**: ID of the user who owns the repository.
+    - **repo_name**: The repository name to delete (without username prefix).
     
-    The user must supply a valid JWT token in the Authorization header.
+    Returns a JSON response with the deletion confirmation message.
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format")
-    token = authorization[len("Bearer "):].strip()
-
-    user_info = authenticate(token)
-    if "id" not in user_info:
-        raise HTTPException(status_code=401, detail="Invalid token payload: missing user id")
-    user_id = user_info["id"]
-
-    message = delete_repository(user_id=user_id, repo_name=payload.repo_name)
-    return DeleteRepositoryOutput(message=message)
+    deletion_message: str = delete_repository(user_id=payload.user_id, repo_name=payload.repo_name)
+    return DeleteRepositoryOutput(detail=deletion_message)

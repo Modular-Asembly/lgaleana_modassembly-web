@@ -1,78 +1,55 @@
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.modassembly.auth.authenticate import authenticate
 from app.modassembly.conversations.business.get_conversation import get_conversation
 from app.modassembly.models.conversation.Conversation import Conversation
 
-router = APIRouter(
+router: APIRouter = APIRouter(
     prefix="/conversations",
     tags=["Conversations"],
-    responses={404: {"description": "Not found"}},
+    responses={404: {"description": "Not found"}}
 )
 
-
-class GetConversationOutput(BaseModel):
+class ConversationOutput(BaseModel):
     id: int
     repository_id: int
     conversation_type: str
     created_at: datetime
 
-    @classmethod
-    def from_orm(cls, conversation: Conversation) -> "GetConversationOutput":
-        return cls(
-            id=conversation.id,
-            repository_id=conversation.repository_id,
-            conversation_type=conversation.conversation_type,
-            created_at=conversation.created_at,
-        )
-
+    class Config:
+        orm_mode = True
 
 @router.get(
-    "",
-    response_model=GetConversationOutput,
-    summary="Retrieve a Conversation",
+    "/",
+    response_model=ConversationOutput,
+    summary="Get Conversation",
     description=(
-        "Retrieves a conversation filtered by repository ID, user ID, and conversation type. "
-        "Requires a valid JWT token in the Authorization header (Bearer token). "
-        "The token is validated using the authenticate function. On success, returns the conversation details."
+        "Retrieves a conversation belonging to a repository. "
+        "You must provide the repository ID, user ID, and conversation type "
+        "as query parameters. The endpoint is secured with OAuth2 via JWT token."
     ),
 )
 def get_conversation_endpoint(
-    repository_id: int = Query(..., description="ID of the repository"),
-    user_id: int = Query(..., description="ID of the user owning the repository"),
-    conversation_type: str = Query(..., description="Type of the conversation (e.g., brainstorm, architecture)"),
-    authorization: str = Header(..., description="Bearer token for authentication"),
-) -> GetConversationOutput:
+    repository_id: int = Query(..., description="The ID of the repository"),
+    user_id: int = Query(..., description="The ID of the owner user"),
+    conversation_type: str = Query(..., description="The type of the conversation (e.g., brainstorm, architecture)"),
+    token_payload: dict[str, Any] = Depends(authenticate)
+) -> ConversationOutput:
     """
-    Endpoint to get a conversation associated with a repository for a user.
+    Endpoint to retrieve a conversation for a given repository by conversation type.
     
     Query Parameters:
-    - **repository_id**: The ID of the repository.
-    - **user_id**: The ID of the user (must match the repository owner).
-    - **conversation_type**: The type of conversation to retrieve.
-    
-    Header:
-    - **Authorization**: A Bearer token for authentication.
+    - repository_id: The repository's unique identifier.
+    - user_id: The user's unique identifier who owns the repository.
+    - conversation_type: The type of the conversation to retrieve.
     
     Returns:
-    - A conversation object with details regarding the conversation.
+        A conversation record matching the query.
     """
-    # Extract token from "Bearer <token>"
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format")
-    token = authorization.split("Bearer ")[1].strip()
-    # Authenticate the token. The returned payload can be used for additional checks if needed.
-    auth_payload: Dict[str, Any] = authenticate(token)
-    
-    # Here you might validate that auth_payload contains the expected user_id if necessary.
-    # For now, we assume that the provided user_id is valid if the token is valid.
-    conversation: Conversation = get_conversation(
-        user_id=user_id,
-        repository_id=repository_id,
-        conversation_type=conversation_type,
-    )
-    return GetConversationOutput.from_orm(conversation)
+    conversation: Conversation = get_conversation(user_id, repository_id, conversation_type)
+    return ConversationOutput.from_orm(conversation)

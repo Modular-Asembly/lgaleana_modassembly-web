@@ -1,56 +1,55 @@
-from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel
-from app.modassembly.auth.authenticate import authenticate
-from app.modassembly.repositories.business.create_repository import create_repository
-from app.modassembly.models.repository.Repository import Repository
+from typing import Any, Dict
 
-router = APIRouter(
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+
+from app.modassembly.auth.authenticate import authenticate
+from app.modassembly.models.repository.Repository import Repository
+from app.modassembly.repositories.business.create_repository import create_repository
+
+router: APIRouter = APIRouter(
     prefix="/repositories",
     tags=["Repositories"],
-    responses={401: {"description": "Unauthorized"}, 404: {"description": "Not found"}},
+    responses={404: {"description": "Not found"}},
 )
 
 class CreateRepositoryInput(BaseModel):
-    repo_name: str
+    repo_name: str = Field(..., description="The name of the repository to create.")
 
 class CreateRepositoryOutput(BaseModel):
-    id: int
-    name: str
-    user_id: int
+    id: int = Field(..., description="The repository ID.")
+    name: str = Field(..., description="The full constructed repository name.")
+    user_id: int = Field(..., description="ID of the owner user.")
 
 @router.post(
-    "",
+    "/create",
     response_model=CreateRepositoryOutput,
-    summary="Create Repository",
+    summary="Create a new repository",
     description=(
-        "Receives repository creation requests, authenticates the user using a Bearer token "
-        "provided in the Authorization header, validates the payload, calls the create_repository "
-        "business logic, and returns the created repository details."
+        "Creates a new repository for the authenticated user. "
+        "Validates the payload, calls the repository creation business logic, "
+        "and returns repository details upon successful creation."
     ),
 )
 def create_repository_endpoint(
     payload: CreateRepositoryInput,
-    authorization: str = Header(..., description="Bearer token for authentication"),
+    user: Dict[str, Any] = Depends(authenticate),
 ) -> CreateRepositoryOutput:
     """
-    Endpoint to create a new repository for the authenticated user.
-    
-    - **repo_name**: Name of the repository to be created.
-    
-    The Authorization header must be in the format: 'Bearer <token>'.
-    
-    Returns a JSON object with the repository id, name, and associated user_id.
+    Endpoint to create a new repository.
+
+    - **repo_name**: The desired repository name.
+    - The authenticated user's ID is extracted from the JWT token payload.
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid Authorization header format")
-    token = authorization[7:]  # Remove 'Bearer ' prefix
-    auth_payload = authenticate(token)
-    
-    # Expecting the authentication payload to include the user_id.
-    user_id: int = auth_payload["user_id"]
-    
+    try:
+        user_id: int = int(user["user_id"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token payload",
+        ) from exc
+
     repository: Repository = create_repository(user_id=user_id, repo_name=payload.repo_name)
-    
     return CreateRepositoryOutput(
         id=repository.id,
         name=repository.name,

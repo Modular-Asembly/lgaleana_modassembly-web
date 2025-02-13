@@ -62,6 +62,139 @@
       "file": null,
       "update_status": "to_update",
       "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "datamodel",
+        "name": "User",
+        "namespace": "app.modassembly.models.user",
+        "dependencies": [],
+        "fields": [
+          {
+            "name": "id",
+            "purpose": "Primary key for the user."
+          },
+          {
+            "name": "username",
+            "purpose": "Unique username for the user."
+          },
+          {
+            "name": "email",
+            "purpose": "Email address for contact and login."
+          },
+          {
+            "name": "hashed_password",
+            "purpose": "Stores the hashed password."
+          },
+          {
+            "name": "created_at",
+            "purpose": "Timestamp when the user was created."
+          }
+        ]
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "hash_password",
+        "namespace": "app.modassembly.users.utils",
+        "dependencies": [],
+        "purpose": "Hashes a plaintext password using a secure hashing algorithm (e.g., bcrypt). Returns the hashed password. Keeps the implementation under 50 lines for clarity.",
+        "pypi_packages": [
+          "bcrypt==4.0.1"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_user",
+        "namespace": "app.modassembly.users.business",
+        "dependencies": [
+          "app.modassembly.models.user.User",
+          "app.modassembly.users.utils.hash_password",
+          "app.modassembly.database.sql.get_sql_session"
+        ],
+        "purpose": "Creates a new user by validating input, calling hash_password to secure the password, and storing the user in the database using get_sql_session. It ensures data integrity and handles errors.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_user_endpoint",
+        "namespace": "app.modassembly.users.endpoints",
+        "dependencies": [
+          "app.modassembly.users.business.create_user"
+        ],
+        "purpose": "FastAPI endpoint that receives user creation requests, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "verify_password",
+        "namespace": "app.modassembly.users.utils",
+        "dependencies": [],
+        "purpose": "Verifies a plaintext password against a hashed password using bcrypt. Returns True if the credentials match, else False. Keeps the implementation clear and under 50 lines.",
+        "pypi_packages": [
+          "bcrypt==4.0.1"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "login_user",
+        "namespace": "app.modassembly.users.business",
+        "dependencies": [
+          "app.modassembly.models.user.User",
+          "app.modassembly.users.utils.verify_password",
+          "app.modassembly.database.sql.get_sql_session"
+        ],
+        "purpose": "Logs in a user by retrieving the user record using get_sql_session, comparing the provided password with the stored hashed password using verify_password, and returning a token or error accordingly.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "login_user_endpoint",
+        "namespace": "app.modassembly.users.endpoints",
+        "dependencies": [
+          "app.modassembly.users.business.login_user"
+        ],
+        "purpose": "FastAPI endpoint that receives login requests, validates the input payload, calls login_user for authentication, and returns an appropriate HTTP response with authentication token or error message.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
     }
   ],
   "github": "https://github.com/Modular-Asembly/lgaleana_modassembly-web"

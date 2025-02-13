@@ -132,8 +132,8 @@
         "name": "create_user",
         "namespace": "app.modassembly.users.business",
         "dependencies": [
-          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.user.User",
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.users.utils.hash_password"
         ],
         "purpose": "Creates a new user by validating input, calling hash_password to secure the password, and storing the user in the database using get_sql_session. It ensures data integrity and handles errors.",
@@ -153,9 +153,9 @@
         "name": "create_user_endpoint",
         "namespace": "app.modassembly.users.endpoints",
         "dependencies": [
-          "app.modassembly.users.business.create_user",
           "app.modassembly.models.user.User",
-          "app.modassembly.auth.authenticate"
+          "app.modassembly.auth.authenticate",
+          "app.modassembly.users.business.create_user"
         ],
         "purpose": "FastAPI endpoint that receives user creation requests, authenticates the caller using the authenticate function, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
         "pypi_packages": [],
@@ -268,11 +268,11 @@
         "name": "create_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.user.User",
           "app.modassembly.conversations.business.create_conversations_for_repository",
           "app.modassembly.models.repository.Repository",
-          "app.modassembly.github.business.create_github_repository",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.github.business.create_github_repository"
         ],
         "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. After saving the repository in the local database, it calls create_conversations_for_repository to add two default conversations ('brainstorm' and 'architecture').",
         "pypi_packages": [],
@@ -374,10 +374,10 @@
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
           "app.modassembly.github.business.delete_github_repository",
-          "app.modassembly.models.user.User",
-          "app.modassembly.models.repository.Repository",
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.conversations.business.delete_conversations_for_repository",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.models.user.User",
+          "app.modassembly.models.repository.Repository"
         ],
         "purpose": "Deletes a repository for a given user. Validates input, checks if the repository exists in the local database, first calls delete_github_repository to remove it from GitHub, then calls delete_conversations_for_repository to remove all conversations associated with the repository, and finally deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
         "pypi_packages": [],
@@ -451,8 +451,8 @@
         "name": "Message",
         "namespace": "app.modassembly.models.message",
         "dependencies": [
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.conversation.Conversation"
         ],
         "fields": [
           {
@@ -494,8 +494,8 @@
         "name": "create_conversations_for_repository",
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.conversation.Conversation"
         ],
         "purpose": "For a given repository, creates two default conversations: one for 'brainstorm' and one for 'architecture'. Uses get_sql_session to interact with the database and inserts Conversation records linked to the repository.",
         "pypi_packages": [],
@@ -514,8 +514,8 @@
         "name": "delete_conversations_for_repository",
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.conversation.Conversation"
         ],
         "purpose": "For a given repository ID, deletes all related Conversation records from the database using get_sql_session.",
         "pypi_packages": [],
@@ -534,9 +534,9 @@
         "name": "get_conversation",
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
-          "app.modassembly.models.conversation.Conversation",
           "app.modassembly.models.repository.Repository",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.conversation.Conversation"
         ],
         "purpose": "Retrieves a single conversation related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then retrieves the conversation from Conversation records using get_sql_session. Returns the matching Conversation record or an error if not found.",
         "pypi_packages": [],
@@ -556,8 +556,8 @@
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
           "app.modassembly.conversations.business.get_conversation",
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.auth.authenticate"
+          "app.modassembly.auth.authenticate",
+          "app.modassembly.models.conversation.Conversation"
         ],
         "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, authenticates the request using the authenticate function, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
         "pypi_packages": [],
@@ -583,8 +583,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/auth/authenticate.py",
+        "content": "import os\nfrom typing import Any, Dict\n\nimport jwt\nfrom fastapi import HTTPException, status\nfrom fastapi.security import HTTPBearer, HTTPAuthorizationCredentials\n\n# Initialize HTTPBearer instance for dependency injection if needed\nsecurity = HTTPBearer()\n\ndef authenticate(token: str) -> Dict[str, Any]:\n    \"\"\"\n    Verifies the JWT token using the secret key from environment variables.\n    Returns the decoded token payload on success.\n\n    Parameters:\n        token (str): The JWT token as a string.\n\n    Returns:\n        Dict[str, Any]: The decoded payload of the JWT token.\n\n    Raises:\n        HTTPException: If the token is invalid or cannot be decoded.\n    \"\"\"\n    secret_key: str = os.environ[\"SECRET_KEY\"]\n\n    # Decode the JWT token using the HS256 algorithm.\n    # Let any jwt exceptions propagate as HTTP errors.\n    try:\n        payload: Dict[str, Any] = jwt.decode(token, secret_key, algorithms=[\"HS256\"])\n    except jwt.PyJWTError as exc:\n        raise HTTPException(\n            status_code=status.HTTP_401_UNAUTHORIZED,\n            detail=\"Invalid JWT token\"\n        ) from exc\n\n    return payload\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

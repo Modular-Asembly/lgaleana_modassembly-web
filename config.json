@@ -576,17 +576,15 @@
         "name": "authenticate",
         "namespace": "app.modassembly.auth",
         "dependencies": [],
-        "purpose": "Verifies the JWT token from the request headers using a secret key (retrieved from an environment variable). Returns the authenticated user information on success; otherwise, raises an authentication error.",
+        "purpose": "Verifies the JWT token from the request headers using FastAPI's HTTPBearer (from fastapi.security). The token is validated using a secret key from an environment variable, enabling its use in Swagger UI for interactive API docs. Returns the authenticated user information on success; otherwise, raises an authentication error.",
         "pypi_packages": [
-          "pyjwt==2.6.0"
+          "pyjwt==2.6.0",
+          "fastapi==0.115.6"
         ],
         "is_endpoint": false
       },
-      "file": {
-        "path": "app/modassembly/auth/authenticate.py",
-        "content": "import os\nfrom typing import Any, Dict\n\nimport jwt\n\n\ndef authenticate(token: str) -> Dict[str, Any]:\n    secret_key: str = os.environ[\"SECRET_KEY\"]\n    algorithm: str = os.environ.get(\"JWT_ALGORITHM\", \"HS256\")\n    payload: Dict[str, Any] = jwt.decode(token, secret_key, algorithms=[algorithm])\n    return payload\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     }
   ],

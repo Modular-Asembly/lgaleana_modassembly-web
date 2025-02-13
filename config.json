@@ -33,7 +33,7 @@
       },
       "file": {
         "path": "app/main.py",
-        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.message.Message import Message\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.conversations.endpoints.list_conversations_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.message.Message import Message\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.delete_repository_endpoint import router\napp.include_router(router)\nfrom app.modassembly.conversations.endpoints.get_conversation_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
       },
       "update_status": "up_to_date",
       "is_deployed": false
@@ -132,9 +132,9 @@
         "name": "create_user",
         "namespace": "app.modassembly.users.business",
         "dependencies": [
-          "app.modassembly.users.utils.hash_password",
           "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.users.utils.hash_password"
         ],
         "purpose": "Creates a new user by validating input, calling hash_password to secure the password, and storing the user in the database using get_sql_session. It ensures data integrity and handles errors.",
         "pypi_packages": [],
@@ -193,8 +193,8 @@
         "namespace": "app.modassembly.users.business",
         "dependencies": [
           "app.modassembly.users.utils.verify_password",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "purpose": "Logs in a user by retrieving the user record using get_sql_session, comparing the provided password with the stored hashed password using verify_password, and returning a token or error accordingly.",
         "pypi_packages": [],
@@ -232,8 +232,8 @@
         "name": "Repository",
         "namespace": "app.modassembly.models.repository",
         "dependencies": [
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.user.User",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "fields": [
           {
@@ -267,11 +267,11 @@
         "name": "create_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
-          "app.modassembly.github.business.create_github_repository",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.repository.Repository",
+          "app.modassembly.models.user.User",
           "app.modassembly.conversations.business.create_conversations_for_repository",
-          "app.modassembly.models.user.User"
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.github.business.create_github_repository",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. After saving the repository in the local database, it calls create_conversations_for_repository to add two default conversations ('brainstorm' and 'architecture').",
         "pypi_packages": [],
@@ -290,8 +290,8 @@
         "name": "create_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
-          "app.modassembly.repositories.business.create_repository",
-          "app.modassembly.models.repository.Repository"
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.repositories.business.create_repository"
         ],
         "purpose": "FastAPI endpoint that receives repository creation requests, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
         "pypi_packages": [],
@@ -371,11 +371,11 @@
         "name": "delete_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.repository.Repository",
+          "app.modassembly.github.business.delete_github_repository",
           "app.modassembly.models.user.User",
+          "app.modassembly.models.repository.Repository",
           "app.modassembly.conversations.business.delete_conversations_for_repository",
-          "app.modassembly.github.business.delete_github_repository"
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "purpose": "Deletes a repository for a given user. Validates input, checks if the repository exists in the local database, first calls delete_github_repository to remove it from GitHub, then calls delete_conversations_for_repository to remove all conversations associated with the repository, and finally deletes the repository record from the local database using get_sql_session. Handles errors appropriately.",
         "pypi_packages": [],
@@ -413,8 +413,8 @@
         "name": "Conversation",
         "namespace": "app.modassembly.models.conversation",
         "dependencies": [
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.repository.Repository"
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "fields": [
           {
@@ -528,54 +528,22 @@
     {
       "design": {
         "type": "function",
-        "name": "list_conversations",
-        "namespace": "app.modassembly.conversations.business",
-        "dependencies": [
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.repository.Repository"
-        ],
-        "purpose": "Retrieves all conversations related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then filters Conversation records using get_sql_session. Returns a list of matching Conversation records.",
-        "pypi_packages": [],
-        "is_endpoint": false
-      },
-      "file": null,
-      "update_status": "to_remove",
-      "is_deployed": false
-    },
-    {
-      "design": {
-        "type": "function",
-        "name": "list_conversations_endpoint",
-        "namespace": "app.modassembly.conversations.endpoints",
-        "dependencies": [
-          "app.modassembly.conversations.business.list_conversations",
-          "app.modassembly.models.repository.Repository"
-        ],
-        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, calls list_conversations to retrieve conversations that match the criteria (while validating repository ownership), and returns an appropriate HTTP response with the filtered list of conversations.",
-        "pypi_packages": [],
-        "is_endpoint": true
-      },
-      "file": null,
-      "update_status": "to_remove",
-      "is_deployed": false
-    },
-    {
-      "design": {
-        "type": "function",
         "name": "get_conversation",
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
           "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.models.repository.Repository"
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.database.sql.get_sql_session"
         ],
         "purpose": "Retrieves a single conversation related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then retrieves the conversation from Conversation records using get_sql_session. Returns the matching Conversation record or an error if not found.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/business/get_conversation.py",
+        "content": "from typing import Iterator\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.conversation.Conversation import Conversation\nfrom app.modassembly.models.repository.Repository import Repository\n\n\ndef get_conversation(user_id: int, repository_id: int, conversation_type: str) -> Conversation:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n\n    # Validate repository ownership\n    repo: Repository | None = (\n        db.query(Repository)\n        .filter(Repository.id == repository_id, Repository.user_id == user_id)\n        .first()\n    )\n    if repo is None:\n        raise ValueError(f\"Repository with id {repository_id} not found for user {user_id}\")\n\n    conversation: Conversation | None = (\n        db.query(Conversation)\n        .filter(Conversation.repository_id == repository_id, Conversation.conversation_type == conversation_type)\n        .first()\n    )\n    if conversation is None:\n        raise ValueError(\n            f\"Conversation of type '{conversation_type}' for repository {repository_id} not found\"\n        )\n\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n\n    return conversation\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -585,14 +553,17 @@
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
           "app.modassembly.conversations.business.get_conversation",
-          "app.modassembly.models.repository.Repository"
+          "app.modassembly.models.conversation.Conversation"
         ],
         "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/conversations/endpoints/get_conversation_endpoint.py",
+        "content": "from datetime import datetime\nfrom fastapi import APIRouter, Query\nfrom pydantic import BaseModel\nfrom app.modassembly.conversations.business.get_conversation import get_conversation\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter = APIRouter()\n\nclass GetConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: datetime\n\n    class Config:\n        orm_mode = True\n\n@router.get(\n    \"/conversation\",\n    response_model=GetConversationResponse,\n    summary=\"Retrieve a conversation\",\n    description=(\n        \"Retrieves a single conversation related to a given repository. \"\n        \"Requires query parameters: repository_id (int), user_id (int), and conversation_type (str). \"\n        \"Validates repository ownership before returning the conversation.\"\n    ),\n)\ndef get_conversation_endpoint(\n    repository_id: int = Query(..., description=\"The repository ID\"),\n    user_id: int = Query(..., description=\"The user ID for ownership validation\"),\n    conversation_type: str = Query(..., description=\"The type of the conversation\")\n) -> GetConversationResponse:\n    \"\"\"\n    FastAPI endpoint to retrieve a conversation.\n\n    Parameters:\n    - repository_id: The ID of the repository.\n    - user_id: The ID of the user (for repository ownership validation).\n    - conversation_type: The type of conversation to retrieve.\n\n    Returns:\n    - GetConversationResponse: The details of the conversation.\n    \n    Raises:\n    - ValueError: If the repository does not belong to the user or no matching conversation is found.\n    \"\"\"\n    conversation: Conversation = get_conversation(user_id, repository_id, conversation_type)\n    return GetConversationResponse.from_orm(conversation)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

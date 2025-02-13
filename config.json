@@ -532,17 +532,15 @@
         "namespace": "app.modassembly.conversations.business",
         "dependencies": [
           "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.repository.Repository"
         ],
-        "purpose": "Retrieves all conversations related to a given repository. Accepts a repository ID, queries the database using get_sql_session, and returns a list of Conversation records.",
+        "purpose": "Retrieves all conversations related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then filters Conversation records using get_sql_session. Returns a list of matching Conversation records.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": {
-        "path": "app/modassembly/conversations/business/list_conversations.py",
-        "content": "from typing import List, Iterator\nfrom sqlalchemy.orm import Session\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\ndef list_conversations(repository_id: int) -> List[Conversation]:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    conversations: List[Conversation] = db.query(Conversation).filter(\n        Conversation.repository_id == repository_id\n    ).all()\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    return conversations\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_remove",
       "is_deployed": false
     },
     {
@@ -551,20 +549,50 @@
         "name": "list_conversations_endpoint",
         "namespace": "app.modassembly.conversations.endpoints",
         "dependencies": [
-          "app.modassembly.models.repository.Repository",
-          "app.modassembly.models.conversation.Conversation",
-          "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.conversations.business.list_conversations"
+          "app.modassembly.conversations.business.list_conversations",
+          "app.modassembly.models.repository.Repository"
         ],
-        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, validates that the repository belongs to the given user, and returns all conversations of that type related to the repository by calling the list_conversations business function. Returns an appropriate HTTP response with the filtered list of conversations.",
+        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, calls list_conversations to retrieve conversations that match the criteria (while validating repository ownership), and returns an appropriate HTTP response with the filtered list of conversations.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/conversations/endpoints/list_conversations_endpoint.py",
-        "content": "from datetime import datetime\nfrom typing import List\n\nfrom fastapi import APIRouter, HTTPException, Query, Depends\nfrom pydantic import BaseModel\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.conversations.business.list_conversations import list_conversations\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.conversation.Conversation import Conversation\n\nrouter = APIRouter()\n\nclass ConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: str\n\n@router.get(\n    \"/conversations\",\n    response_model=List[ConversationResponse],\n    summary=\"List Conversations\",\n    description=(\n        \"Retrieve all conversations for a given repository filtered by conversation type \"\n        \"after validating that the repository belongs to the provided user. \"\n        \"Query parameters: repository_id, user_id, and conversation_type.\"\n    )\n)\ndef list_conversations_endpoint(\n    repository_id: int,\n    user_id: int,\n    conversation_type: str = Query(..., description=\"Type of conversation to filter by\"),\n    db: Session = Depends(get_sql_session)\n) -> List[ConversationResponse]:\n    \"\"\"\n    FastAPI endpoint that receives repository_id, user_id, and conversation_type as query\n    parameters, validates that the repository belongs to the specified user, and returns all\n    conversations of that type related to the repository.\n\n    Parameters:\n        repository_id (int): The ID of the repository.\n        user_id (int): The ID of the user.\n        conversation_type (str): The conversation type to filter by.\n        db (Session): SQLAlchemy database session dependency.\n\n    Returns:\n        List[ConversationResponse]: A list of conversations filtered by conversation type.\n    \"\"\"\n    repository: Repository | None = db.query(Repository).filter(Repository.id == repository_id).first()\n    if repository is None:\n        raise HTTPException(status_code=404, detail=\"Repository not found\")\n    if repository.user_id != user_id:\n        raise HTTPException(status_code=403, detail=\"Repository does not belong to the specified user\")\n    \n    conversations: List[Conversation] = list_conversations(repository_id)\n    filtered_conversations = [\n        conv for conv in conversations if conv.conversation_type == conversation_type\n    ]\n    \n    return [\n        ConversationResponse(\n            id=conv.id,\n            repository_id=conv.repository_id,\n            conversation_type=conv.conversation_type,\n            created_at=conv.created_at.isoformat() if isinstance(conv.created_at, datetime) else str(conv.created_at)\n        )\n        for conv in filtered_conversations\n    ]\n"
+      "file": null,
+      "update_status": "to_remove",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "get_conversation",
+        "namespace": "app.modassembly.conversations.business",
+        "dependencies": [
+          "app.modassembly.models.conversation.Conversation",
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.repository.Repository"
+        ],
+        "purpose": "Retrieves a single conversation related to a given repository, filtered by repository ID, user ID (to validate ownership), and conversation type. It first validates that the repository belongs to the given user by querying the Repository datamodel, then retrieves the conversation from Conversation records using get_sql_session. Returns the matching Conversation record or an error if not found.",
+        "pypi_packages": [],
+        "is_endpoint": false
       },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "get_conversation_endpoint",
+        "namespace": "app.modassembly.conversations.endpoints",
+        "dependencies": [
+          "app.modassembly.conversations.business.get_conversation",
+          "app.modassembly.models.repository.Repository"
+        ],
+        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, calls get_conversation to retrieve the matching conversation (while validating repository ownership), and returns an appropriate HTTP response with the conversation details.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     }
   ],

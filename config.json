@@ -553,15 +553,12 @@
         "dependencies": [
           "app.modassembly.conversations.business.list_conversations"
         ],
-        "purpose": "FastAPI endpoint that receives a repository identification (e.g., repository ID) and returns all conversations related to that repository by calling the list_conversations business function. Returns an appropriate HTTP response with the list of conversations.",
+        "purpose": "FastAPI endpoint that receives repository ID, user ID, and conversation type as query parameters, validates that the repository belongs to the given user, and returns all conversations of that type related to the repository by calling the list_conversations business function. Returns an appropriate HTTP response with the filtered list of conversations.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": {
-        "path": "app/modassembly/conversations/endpoints/list_conversations_endpoint.py",
-        "content": "from datetime import datetime\nfrom typing import List\n\nfrom fastapi import APIRouter, Query\nfrom pydantic import BaseModel\n\nfrom app.modassembly.conversations.business.list_conversations import list_conversations\n\n# Pydantic model for conversation response\nclass ConversationResponse(BaseModel):\n    id: int\n    repository_id: int\n    conversation_type: str\n    created_at: str\n\nrouter = APIRouter()\n\n@router.get(\n    \"/conversations\",\n    response_model=List[ConversationResponse],\n    summary=\"List Conversations\",\n    description=(\n        \"Retrieve all conversations related to a given repository by providing the repository ID. \"\n        \"Calls the business function to fetch Conversation records from the database.\"\n    )\n)\ndef list_conversations_endpoint(\n    repository_id: int = Query(..., description=\"ID of the repository to filter conversations\")\n) -> List[ConversationResponse]:\n    \"\"\"\n    FastAPI endpoint that receives a repository ID as a query parameter and returns all conversations \n    related to that repository. The endpoint calls the list_conversations business function and \n    maps each Conversation record into a ConversationResponse model for Swagger documentation.\n    \n    Parameters:\n        repository_id (int): The ID of the repository whose conversations are to be retrieved.\n    \n    Returns:\n        List[ConversationResponse]: A list of conversation responses.\n    \"\"\"\n    conversations = list_conversations(repository_id)\n    return [\n        ConversationResponse(\n            id=conv.id,\n            repository_id=conv.repository_id,\n            conversation_type=conv.conversation_type,\n            created_at=conv.created_at.isoformat()\n        )\n        for conv in conversations\n    ]\n"
-      },
-      "update_status": "up_to_date",
+      "file": null,
+      "update_status": "to_update",
       "is_deployed": false
     }
   ],

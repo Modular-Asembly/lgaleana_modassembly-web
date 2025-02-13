@@ -31,8 +31,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/main.py",
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -59,8 +62,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/database/sql/get_sql_session.py",
+        "content": "import os\nfrom typing import Iterator\n\nfrom sqlalchemy import create_engine\nfrom sqlalchemy.ext.declarative import declarative_base\nfrom sqlalchemy.orm import Session, sessionmaker\n\n\nBase = declarative_base()\nengine = create_engine(os.environ[\"DB_URL\"])\nSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)\n\n\ndef get_sql_session() -> Iterator[Session]:\n    db = SessionLocal()\n    try:\n        yield db\n    finally:\n        db.close()\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -68,7 +74,9 @@
         "type": "datamodel",
         "name": "User",
         "namespace": "app.modassembly.models.user",
-        "dependencies": [],
+        "dependencies": [
+          "app.modassembly.database.sql.get_sql_session"
+        ],
         "fields": [
           {
             "name": "id",
@@ -92,8 +100,11 @@
           }
         ]
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/models/user/User.py",
+        "content": "from datetime import datetime\nfrom sqlalchemy import Column, Integer, String, DateTime\nfrom app.modassembly.database.sql.get_sql_session import Base\n\nclass User(Base):\n    __tablename__ = \"users\"\n\n    id = Column(Integer, primary_key=True, index=True)\n    username = Column(String, unique=True, nullable=False, index=True)\n    email = Column(String, unique=True, nullable=False, index=True)\n    hashed_password = Column(String, nullable=False)\n    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -108,8 +119,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/utils/hash_password.py",
+        "content": "import os\nfrom typing import Final\nimport bcrypt\n\n# Retrieve the bcrypt salt rounds from environment variables, default to 12 if not set.\nBCRYPT_ROUNDS: Final[int] = int(os.environ.get(\"BCRYPT_ROUNDS\", 12))\n\ndef hash_password(password: str) -> str:\n    \"\"\"\n    Hashes a plaintext password using bcrypt with the number of rounds defined by the environment variable BCRYPT_ROUNDS.\n    Returns the hashed password as a UTF-8 string.\n    \"\"\"\n    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)\n    hashed = bcrypt.hashpw(password.encode(\"utf-8\"), salt)\n    return hashed.decode(\"utf-8\")\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -118,16 +132,19 @@
         "name": "create_user",
         "namespace": "app.modassembly.users.business",
         "dependencies": [
-          "app.modassembly.models.user.User",
           "app.modassembly.users.utils.hash_password",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.user.User"
         ],
         "purpose": "Creates a new user by validating input, calling hash_password to secure the password, and storing the user in the database using get_sql_session. It ensures data integrity and handles errors.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/business/create_user.py",
+        "content": "from datetime import datetime\nfrom typing import Iterator\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.users.utils.hash_password import hash_password\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\n\ndef create_user(username: str, email: str, password: str) -> User:\n    \"\"\"\n    Creates a new user by validating input, calling hash_password to secure the password,\n    and storing the user in the database using get_sql_session.\n    \"\"\"\n    hashed = hash_password(password)\n    new_user = User(\n        username=username,\n        email=email,\n        hashed_password=hashed,\n        created_at=datetime.utcnow()\n    )\n\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    db.add(new_user)\n    db.commit()\n    db.refresh(new_user)\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n\n    return new_user\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -136,14 +153,18 @@
         "name": "create_user_endpoint",
         "namespace": "app.modassembly.users.endpoints",
         "dependencies": [
-          "app.modassembly.users.business.create_user"
+          "app.modassembly.users.business.create_user",
+          "app.modassembly.models.user.User"
         ],
         "purpose": "FastAPI endpoint that receives user creation requests, extracts the payload, and calls create_user business logic. Returns appropriate HTTP responses.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/endpoints/create_user_endpoint.py",
+        "content": "from fastapi import APIRouter, HTTPException, status\nfrom pydantic import BaseModel, EmailStr\nfrom app.modassembly.users.business.create_user import create_user\nfrom app.modassembly.models.user.User import User  # type: ignore\n\nrouter = APIRouter()\n\nclass CreateUserPayload(BaseModel):\n    username: str\n    email: EmailStr\n    password: str\n\nclass UserResponse(BaseModel):\n    id: int\n    username: str\n    email: EmailStr\n    created_at: str\n\n@router.post(\n    \"/users\",\n    response_model=UserResponse,\n    status_code=status.HTTP_201_CREATED,\n    summary=\"Create a new user\",\n    description=\"Endpoint to create a new user. Expects a JSON payload with username, email, and password.\"\n)\ndef create_user_endpoint(payload: CreateUserPayload) -> UserResponse:\n    \"\"\"\n    FastAPI endpoint that receives user creation requests, extracts the payload,\n    and calls create_user business logic. Returns appropriate HTTP responses.\n    \"\"\"\n    try:\n        user: User = create_user(payload.username, payload.email, payload.password)\n    except Exception as e:\n        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))\n    \n    return UserResponse(\n        id=user.id,\n        username=user.username,\n        email=user.email,\n        created_at=user.created_at.isoformat()\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -158,8 +179,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/utils/verify_password.py",
+        "content": "import bcrypt\n\ndef verify_password(plain_password: str, hashed_password: str) -> bool:\n    return bcrypt.checkpw(plain_password.encode(\"utf-8\"), hashed_password.encode(\"utf-8\"))\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -168,16 +192,19 @@
         "name": "login_user",
         "namespace": "app.modassembly.users.business",
         "dependencies": [
-          "app.modassembly.models.user.User",
           "app.modassembly.users.utils.verify_password",
-          "app.modassembly.database.sql.get_sql_session"
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.models.user.User"
         ],
         "purpose": "Logs in a user by retrieving the user record using get_sql_session, comparing the provided password with the stored hashed password using verify_password, and returning a token or error accordingly.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/business/login_user.py",
+        "content": "from typing import Any\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.users.utils.verify_password import verify_password\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\n\ndef login_user(email: str, plain_password: str) -> str:\n    \"\"\"\n    Logs in a user by querying the database for a user with the given email,\n    verifying the provided plaintext password against the stored hashed password,\n    and returning a token string on success. Raises a ValueError if the user is not found\n    or the password is incorrect.\n    \"\"\"\n    # Retrieve a database session using get_sql_session generator.\n    for db in get_sql_session():\n        user: Any = db.query(User).filter(User.email == email).first()\n        if user is None:\n            raise ValueError(\"User not found\")\n        if not verify_password(plain_password, user.hashed_password):\n            raise ValueError(\"Incorrect password\")\n        # A simple token is generated by combining a constant secret from environment and user id.\n        # In a production environment, use secure token generation (e.g., JWT).\n        from os import environ\n        secret_key: str = environ[\"SECRET_KEY\"]\n        token: str = f\"{secret_key}-{user.id}\"\n        return token\n\n    # This line should theoretically never be reached.\n    raise RuntimeError(\"Database session could not be established\")\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -192,8 +219,11 @@
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/users/endpoints/login_user_endpoint.py",
+        "content": "from fastapi import APIRouter, HTTPException\nfrom pydantic import BaseModel\nfrom app.modassembly.users.business.login_user import login_user\n\nrouter = APIRouter()\n\nclass LoginRequest(BaseModel):\n    email: str\n    password: str\n\nclass LoginResponse(BaseModel):\n    token: str\n\n@router.post(\n    \"/login\",\n    response_model=LoginResponse,\n    summary=\"User Login\",\n    description=\"Endpoint to log in a user by validating the input payload and returning an authentication token.\"\n)\ndef login_user_endpoint(payload: LoginRequest) -> LoginResponse:\n    \"\"\"\n    FastAPI endpoint that receives login requests, validates the input payload using pydantic,\n    calls the business logic function login_user for authentication, and returns an authentication\n    token if login is successful. Raises HTTPException with a 401 status code if authentication fails.\n    \"\"\"\n    try:\n        token: str = login_user(email=payload.email, plain_password=payload.password)\n        return LoginResponse(token=token)\n    except ValueError as error:\n        raise HTTPException(status_code=401, detail=str(error))\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

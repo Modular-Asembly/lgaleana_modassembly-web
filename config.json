@@ -225,6 +225,106 @@
       },
       "update_status": "up_to_date",
       "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "datamodel",
+        "name": "Repository",
+        "namespace": "app.modassembly.models.repository",
+        "dependencies": [
+          "app.modassembly.models.user.User"
+        ],
+        "fields": [
+          {
+            "name": "id",
+            "purpose": "Primary key for the repository."
+          },
+          {
+            "name": "name",
+            "purpose": "Name of the repository."
+          },
+          {
+            "name": "created_at",
+            "purpose": "Timestamp when the repository was created."
+          },
+          {
+            "name": "user_id",
+            "purpose": "Foreign key to the User who owns this repository."
+          }
+        ]
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_repository",
+        "namespace": "app.modassembly.repositories.business",
+        "dependencies": [
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.models.user.User",
+          "app.modassembly.database.sql.get_sql_session",
+          "app.modassembly.github.business.create_github_repository"
+        ],
+        "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. Finally, it saves the repository in the local database.",
+        "pypi_packages": [],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_repository_endpoint",
+        "namespace": "app.modassembly.repositories.endpoints",
+        "dependencies": [
+          "app.modassembly.repositories.business.create_repository"
+        ],
+        "purpose": "FastAPI endpoint that receives repository creation requests, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
+        "pypi_packages": [],
+        "is_endpoint": true
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "check_github_repo_exists",
+        "namespace": "app.modassembly.github.utils",
+        "dependencies": [],
+        "purpose": "Checks if a repository exists in the GitHub organization by calling the GitHub API. It constructs the repository name as '{user_name}_{repo_name}' and returns True if it exists, otherwise False. Utilizes 'requests' for the HTTP calls.",
+        "pypi_packages": [
+          "requests==2.31.0"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
+    },
+    {
+      "design": {
+        "type": "function",
+        "name": "create_github_repository",
+        "namespace": "app.modassembly.github.business",
+        "dependencies": [
+          "app.modassembly.github.utils.check_github_repo_exists"
+        ],
+        "purpose": "Creates a new repository in the GitHub organization 'Modular-Asembly'. It retrieves the authentication token from the environment variable GITHUB_TOKEN, then checks that the repository (named '{user_name}_{repo_name}') does not exist by calling check_github_repo_exists. If the repository does not exist, it creates it using the GitHub API. Returns the GitHub URL of the new repository.",
+        "pypi_packages": [
+          "requests==2.31.0"
+        ],
+        "is_endpoint": false
+      },
+      "file": null,
+      "update_status": "to_update",
+      "is_deployed": false
     }
   ],
   "github": "https://github.com/Modular-Asembly/lgaleana_modassembly-web"

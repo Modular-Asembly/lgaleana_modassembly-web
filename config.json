@@ -33,7 +33,7 @@
       },
       "file": {
         "path": "app/main.py",
-        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
+        "content": "from dotenv import load_dotenv\nfrom fastapi import FastAPI\nfrom starlette.middleware.cors import CORSMiddleware\n\n\nload_dotenv()\n\n\napp = FastAPI()\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"*\"],\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)\n\n# Models\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\n\n# Endpoints\n\nfrom app.modassembly.users.endpoints.create_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.users.endpoints.login_user_endpoint import router\napp.include_router(router)\nfrom app.modassembly.repositories.endpoints.create_repository_endpoint import router\napp.include_router(router)\n\n# Database\n\nfrom app.modassembly.database.sql.get_sql_session import Base, engine\nBase.metadata.create_all(engine)\n"
       },
       "update_status": "up_to_date",
       "is_deployed": false
@@ -232,6 +232,7 @@
         "name": "Repository",
         "namespace": "app.modassembly.models.repository",
         "dependencies": [
+          "app.modassembly.database.sql.get_sql_session",
           "app.modassembly.models.user.User"
         ],
         "fields": [
@@ -253,8 +254,11 @@
           }
         ]
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/models/repository/Repository.py",
+        "content": "from datetime import datetime\nfrom sqlalchemy import Column, Integer, String, DateTime, ForeignKey\nfrom app.modassembly.database.sql.get_sql_session import Base\nfrom app.modassembly.models.user.User import User  # Ensure User model is imported for reference\n\nclass Repository(Base):\n    __tablename__ = \"repositories\"\n\n    id = Column(Integer, primary_key=True, index=True)\n    name = Column(String, unique=True, nullable=False, index=True)\n    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)\n    user_id = Column(Integer, ForeignKey(User.id), nullable=False)\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -263,17 +267,20 @@
         "name": "create_repository",
         "namespace": "app.modassembly.repositories.business",
         "dependencies": [
-          "app.modassembly.models.repository.Repository",
-          "app.modassembly.models.user.User",
+          "app.modassembly.github.business.create_github_repository",
           "app.modassembly.database.sql.get_sql_session",
-          "app.modassembly.github.business.create_github_repository"
+          "app.modassembly.models.repository.Repository",
+          "app.modassembly.models.user.User"
         ],
         "purpose": "Creates a new repository for a given user. Validates input and ensures the user exists, then constructs a repository name as '{user_name}_{repo_name}', checks that it doesn't already exist in the GitHub 'Modular-Asembly' organization, and if not, creates it via the GitHub API by calling create_github_repository. Finally, it saves the repository in the local database.",
         "pypi_packages": [],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/business/create_repository.py",
+        "content": "from datetime import datetime\nfrom typing import Iterator\n\nfrom sqlalchemy.orm import Session\n\nfrom app.modassembly.models.repository.Repository import Repository\nfrom app.modassembly.models.user.User import User\nfrom app.modassembly.database.sql.get_sql_session import get_sql_session\nfrom app.modassembly.github.business.create_github_repository import create_github_repository\n\ndef create_repository(user_id: int, repo_name: str) -> Repository:\n    session_iter: Iterator[Session] = get_sql_session()\n    db: Session = next(session_iter)\n    \n    user: User | None = db.query(User).filter(User.id == user_id).first()\n    if user is None:\n        raise ValueError(\"User not found\")\n    \n    full_repo_name: str = f\"{user.username}_{repo_name}\"\n    \n    # Create the GitHub repository (this will raise if exists)\n    github_url: str = create_github_repository(user.username, repo_name)\n    \n    new_repository: Repository = Repository(\n        name=full_repo_name,\n        created_at=datetime.utcnow(),\n        user_id=user.id\n    )\n    db.add(new_repository)\n    db.commit()\n    db.refresh(new_repository)\n    \n    # Close the database session\n    try:\n        next(session_iter)\n    except StopIteration:\n        pass\n    \n    return new_repository\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -282,14 +289,18 @@
         "name": "create_repository_endpoint",
         "namespace": "app.modassembly.repositories.endpoints",
         "dependencies": [
-          "app.modassembly.repositories.business.create_repository"
+          "app.modassembly.repositories.business.create_repository",
+          "app.modassembly.models.repository.Repository"
         ],
         "purpose": "FastAPI endpoint that receives repository creation requests, validates the payload, calls create_repository business logic, and returns an appropriate HTTP response.",
         "pypi_packages": [],
         "is_endpoint": true
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/repositories/endpoints/create_repository_endpoint.py",
+        "content": "from fastapi import APIRouter, status\nfrom pydantic import BaseModel\nfrom app.modassembly.repositories.business.create_repository import create_repository\nfrom app.modassembly.models.repository.Repository import Repository\n\nrouter = APIRouter()\n\nclass CreateRepositoryPayload(BaseModel):\n    user_id: int\n    repo_name: str\n\nclass RepositoryResponse(BaseModel):\n    id: int\n    name: str\n    created_at: str\n    user_id: int\n\n@router.post(\n    \"/repositories\",\n    response_model=RepositoryResponse,\n    status_code=status.HTTP_201_CREATED,\n    summary=\"Create Repository\",\n    description=(\n        \"Creates a new repository for the given user. Validates the payload, \"\n        \"ensures the user exists, constructs the repository name, checks that it \"\n        \"does not already exist in the GitHub 'Modular-Asembly' organization, and if \"\n        \"not, creates it via the GitHub API. The repository is then saved in the local \"\n        \"database and details are returned.\"\n    )\n)\ndef create_repository_endpoint(payload: CreateRepositoryPayload) -> RepositoryResponse:\n    \"\"\"\n    FastAPI endpoint to create a new repository.\n\n    Parameters:\n    - payload: CreateRepositoryPayload\n        - user_id: The ID of the user who owns the repository.\n        - repo_name: The desired name of the repository.\n\n    Returns:\n    - RepositoryResponse containing the repository id, name, created_at timestamp, and user_id.\n    \"\"\"\n    repository: Repository = create_repository(payload.user_id, payload.repo_name)\n    return RepositoryResponse(\n        id=repository.id,\n        name=repository.name,\n        created_at=repository.created_at.isoformat(),\n        user_id=repository.user_id\n    )\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -304,8 +315,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/github/utils/check_github_repo_exists.py",
+        "content": "import os\nimport requests\nfrom typing import Final\n\ndef check_github_repo_exists(user_name: str, repo_name: str) -> bool:\n    github_org: Final[str] = os.environ[\"GITHUB_ORG\"]\n    token: Final[str] = os.environ[\"GITHUB_TOKEN\"]\n    repo_full_name: str = f\"{user_name}_{repo_name}\"\n    url: str = f\"https://api.github.com/repos/{github_org}/{repo_full_name}\"\n    headers: dict[str, str] = {\"Authorization\": f\"token {token}\"}\n    response: requests.Response = requests.get(url, headers=headers)\n    if response.status_code == 200:\n        return True\n    if response.status_code == 404:\n        return False\n    response.raise_for_status()\n    return False  # This line is unreachable, but satisfies mypy.\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     },
     {
@@ -322,8 +336,11 @@
         ],
         "is_endpoint": false
       },
-      "file": null,
-      "update_status": "to_update",
+      "file": {
+        "path": "app/modassembly/github/business/create_github_repository.py",
+        "content": "import os\nimport requests\nfrom typing import Final\n\nfrom app.modassembly.github.utils.check_github_repo_exists import check_github_repo_exists\n\ndef create_github_repository(user_name: str, repo_name: str) -> str:\n    github_org: Final[str] = os.environ[\"GITHUB_ORG\"]\n    token: Final[str] = os.environ[\"GITHUB_TOKEN\"]\n    repo_full_name: str = f\"{user_name}_{repo_name}\"\n    \n    # Check if repository already exists\n    if check_github_repo_exists(user_name, repo_name):\n        raise ValueError(f\"Repository {repo_full_name} already exists in organization {github_org}\")\n    \n    url: str = f\"https://api.github.com/orgs/{github_org}/repos\"\n    headers: dict[str, str] = {\n        \"Authorization\": f\"token {token}\",\n        \"Accept\": \"application/vnd.github+json\"\n    }\n    payload: dict[str, object] = {\n        \"name\": repo_full_name,\n        \"private\": False\n    }\n    \n    response: requests.Response = requests.post(url, json=payload, headers=headers)\n    response.raise_for_status()\n    repo_data: dict[str, object] = response.json()\n    github_url: str = repo_data[\"html_url\"]  # type: ignore\n    return github_url\n"
+      },
+      "update_status": "up_to_date",
       "is_deployed": false
     }
   ],

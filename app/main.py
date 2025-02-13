@@ -18,6 +18,7 @@ app.add_middleware(
 
 # Models
 
+from app.modassembly.models.repository.Repository import Repository
 from app.modassembly.models.user.User import User
 
 # Endpoints
@@ -25,6 +26,8 @@ from app.modassembly.models.user.User import User
 from app.modassembly.users.endpoints.create_user_endpoint import router
 app.include_router(router)
 from app.modassembly.users.endpoints.login_user_endpoint import router
+app.include_router(router)
+from app.modassembly.repositories.endpoints.create_repository_endpoint import router
 app.include_router(router)
 
 # Database
